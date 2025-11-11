@@ -2,7 +2,7 @@
 
 **Subtitle:** Small Reasoning Model — White Paper based on the official Hugging Face release
 **Version:** 1.1 — Source: model and files published on Hugging Face [PleIAs/Baguettotron](https://huggingface.co/PleIAs/Baguettotron)
-<img width="1444" height="1430" alt="image" src="https://github.com/user-attachments/assets/132b8aba-ce70-4f81-ad57-87ab6ee841d6" />
+<img width="722" height="715" alt="image" src="https://github.com/user-attachments/assets/132b8aba-ce70-4f81-ad57-87ab6ee841d6" />
 
 ---
 
