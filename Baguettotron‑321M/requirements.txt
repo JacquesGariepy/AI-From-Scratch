@@ -1,0 +1,11 @@
+accelerate>=0.34.2
+transformers>=4.51.3
+pyyaml>=6.0.2
+pytest>=7.4
+typing_extensions>=4.9
+torch>=2.3
+datasets>=2.21.0
+huggingface_hub>=0.24.6
+tokenizers>=0.20.0
+sentencepiece>=0.2.0
+datasets>=2.0

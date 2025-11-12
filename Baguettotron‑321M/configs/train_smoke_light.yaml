@@ -1,0 +1,26 @@
+model:
+  vocab_size: 512
+  d_model: 64
+  n_layers: 2
+  n_heads: 4
+  n_kv_heads: 2
+  mlp_hidden: 128
+  max_seq_len: 64
+  rope_theta: 10000.0
+  rope_interleaved: false
+  rms_norm_eps: 1.0e-05
+  sliding_window: 0
+  attn_impl: sdpa
+  dtype: fp32
+train:
+  epochs: 1
+  steps_per_epoch: 4
+  micro_batch_size: 2
+  grad_accum_steps: 2
+  lr: 0.0003
+  weight_decay: 0.01
+  tf32: false
+  amp_dtype: none
+data:
+  type: stub
+  seq_len: 32

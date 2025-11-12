@@ -1,0 +1,18 @@
+{
+  "Model name": "Baguettotron (tiny test)",
+  "Parameters": 1000000,
+  "Number of layers": 2,
+  "Embedding dimension": 64,
+  "Hidden layer dimension": 128,
+  "Attention type": "Mask group-query attention",
+  "Attention heads": 4,
+  "Vocabulary size": 512,
+  "Tokenizer": "stub",
+  "Normalization": "RMSNorm",
+  "Final normalization": "RMSNorm",
+  "Positional embedding": "learned",
+  "Thinking tags": [
+    "<think>",
+    "</think>"
+  ]
+}

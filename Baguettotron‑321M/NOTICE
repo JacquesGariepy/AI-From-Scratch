@@ -1,0 +1,72 @@
+NOTICE - NOT AFFILIATED WITH PleIAs
+====================================
+
+This project is NOT AFFILIATED with PleIAs or the Baguettotron team in any way.
+
+Project: Baguettotron-321M Reverse Engineering Implementation
+Author: Jacques Gariépy
+GitHub: https://github.com/JacquesGariepy/AI-From-Scratch/tree/main/Baguettotron-321M
+License: Apache License 2.0
+
+IMPORTANT NOTICES:
+
+1. NO AFFILIATION
+   This project has ZERO AFFILIATION with:
+   - PleIAs organization
+   - The Baguettotron team
+   - The original model creators
+
+   NO collaboration, assistance, communication, endorsement, approval,
+   partnership, sponsorship, or relationship exists with PleIAs.
+
+2. INDEPENDENT REVERSE ENGINEERING
+   This code was written independently through reverse engineering of the
+   publicly available Baguettotron-321M model architecture on HuggingFace.
+
+   Sources used:
+   - Public model structure on HuggingFace
+   - Public config.json file
+   - Public architectural information
+
+   NO proprietary code, training code, documentation, or insider information
+   was accessed or used.
+
+3. EDUCATIONAL PURPOSE
+   This implementation was created purely for educational purposes to
+   understand and learn about transformer architectures.
+
+4. OFFICIAL MODEL
+   For the official Baguettotron-321M model, weights, and support:
+   https://huggingface.co/PleIAs/Baguettotron
+
+5. ANALYZED MODEL ATTRIBUTION
+   This project analyzes and reverse engineers the architecture of:
+
+   Baguettotron-321M by PleIAs
+   - Model: https://huggingface.co/PleIAs/Baguettotron
+   - Dataset: https://huggingface.co/datasets/PleIAs/SYNTH
+   - License: Apache 2.0
+
+   This is done in accordance with the Apache 2.0 license and for educational
+   purposes only.
+
+6. ARCHITECTURE INSPIRATION
+   The transformer architecture is inspired by Meta's LlamaForCausalLM design,
+   which uses standard components (GQA, SwiGLU, RoPE, RMSNorm).
+
+7. COPYRIGHT
+   Copyright 2024 Jacques Gariépy
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+
+   See LICENSE file for full license text.
+
+8. DISCLAIMER
+   This software is provided "AS IS", WITHOUT WARRANTY OF ANY KIND.
+   This is an educational project and should not be used for production
+   purposes. For production use, please use the official PleIAs/Baguettotron
+   model.
+
+For detailed disclaimer, see DISCLAIMER.md
+For authorship information, see AUTHORS.md

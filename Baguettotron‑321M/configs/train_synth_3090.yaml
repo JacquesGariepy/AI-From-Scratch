@@ -1,0 +1,30 @@
+model:
+  vocab_size: 65536
+  d_model: 576
+  n_layers: 8
+  n_heads: 9
+  n_kv_heads: 3
+  mlp_hidden: 1536
+  max_seq_len: 1024
+train:
+  micro_batch_size: 2
+  grad_accum_steps: 8
+  epochs: 1
+  steps_per_epoch: 1000
+  lr: 3.0e-4
+  weight_decay: 0.1
+  warmup_steps: 100
+  amp_dtype: bf16
+  tf32: true
+  clip_grad_norm: 1.0
+  save_every_steps: 1000
+  out_dir: "out_synth_3090"
+data:
+  type: synth
+  seq_len: 1024
+  streaming: true
+  shuffle_seed: 0
+  languages_keep: ["en","fr","de","it","es","pl"]
+  tokenizer_path: null
+logging:
+  log_every: 10

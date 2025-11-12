@@ -1,0 +1,6 @@
+Nouveau dossier
+__pycache__/
+*.log
+.venv/
+baguettotron.egg-info/
+Baguettotron‑321M/legacy/

@@ -1,0 +1,1 @@
+{"format": ["<|im_start|>user\n{user}<|im_end|>\n<|im_start|>assistant\n{think_tag}"], "rag_block": "{sources}"}
