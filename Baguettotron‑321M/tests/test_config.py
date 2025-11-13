@@ -33,11 +33,11 @@ class TestBaguettotronConfig:
         # Verify official parameters
         assert config.vocab_size == 65536
         assert config.hidden_size == 576
-        assert config.num_hidden_layers == 24
+        assert config.num_hidden_layers == 80  # 80 layers for ~321M params
         assert config.num_attention_heads == 9
         assert config.num_key_value_heads == 3
         assert config.intermediate_size == 1536
-        assert config.max_position_embeddings == 2048
+        assert config.max_position_embeddings == 4096
         assert config.rope_theta == 10000.0
         assert config.rms_norm_eps == 1e-5
         assert config.tie_word_embeddings is True

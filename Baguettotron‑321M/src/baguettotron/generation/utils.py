@@ -76,15 +76,12 @@ def top_p_filtering(
     cumulative_probs = torch.cumsum(F.softmax(sorted_logits, dim=-1), dim=-1)
 
     # Remove tokens with cumulative probability above threshold
+    # Keep tokens where cumsum <= top_p
     sorted_indices_to_remove = cumulative_probs > top_p
 
     # Keep at least min_tokens_to_keep
     if min_tokens_to_keep > 1:
-        sorted_indices_to_remove[..., :min_tokens_to_keep] = 0
-
-    # Shift right to keep the first token above threshold
-    sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
-    sorted_indices_to_remove[..., 0] = 0
+        sorted_indices_to_remove[..., :min_tokens_to_keep] = False
 
     # Scatter to original indexing
     indices_to_remove = sorted_indices_to_remove.scatter(
@@ -220,16 +217,19 @@ def repetition_penalty_apply(
     if penalty == 1.0:
         return logits
 
+    # Clone to avoid modifying the input
+    logits = logits.clone()
     batch_size, vocab_size = logits.shape
 
     # For each token in generated_tokens, apply penalty
     for i in range(batch_size):
         for token in generated_tokens[i].unique():
-            # If logit is positive, divide by penalty; if negative, multiply
-            if logits[i, token] < 0:
-                logits[i, token] *= penalty
-            else:
+            # Apply penalty: divide positive logits, multiply negative logits
+            # This reduces the score in both cases (discourages repetition)
+            if logits[i, token] > 0:
                 logits[i, token] /= penalty
+            else:
+                logits[i, token] *= penalty
 
     return logits
 

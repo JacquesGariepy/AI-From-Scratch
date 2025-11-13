@@ -14,6 +14,7 @@ import argparse
 import logging
 import sys
 from pathlib import Path
+import os
 import yaml
 import torch
 from typing import Optional, Dict, Any
@@ -59,12 +60,23 @@ def parse_args() -> argparse.Namespace:
         help='Path to training data (JSON file with token sequences)',
     )
     parser.add_argument(
+        '--datasets',
+        type=str,
+        help='Comma-separated list of datasets (synth,wikipedia,demo) or "auto" for auto-detect',
+    )
+    parser.add_argument(
+        '--dataset-weights',
+        type=str,
+        help='Comma-separated weights for each dataset (e.g., "0.7,0.3")',
+    )
+    parser.add_argument(
         '--eval-data',
         type=str,
         help='Path to evaluation data (optional)',
     )
     parser.add_argument(
         '--block-size',
+        '--max-length',
         type=int,
         default=2048,
         help='Maximum sequence length',
@@ -181,9 +193,16 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         '--save-interval',
+        '--save-steps',
         type=int,
         default=1000,
         help='Save checkpoint every N steps',
+    )
+    parser.add_argument(
+        '--save-total-limit',
+        type=int,
+        default=None,
+        help='Maximum number of checkpoints to keep (default: keep all)',
     )
 
     # Other
@@ -210,9 +229,15 @@ def load_config_file(config_path: str) -> Dict[str, Any]:
     return config
 
 
-def create_model_config(args: argparse.Namespace) -> BaguettotronConfig:
-    """Create model configuration from arguments."""
-    if args.model_config == '321m':
+def create_model_config(args: argparse.Namespace, yaml_config: Optional[Dict] = None) -> BaguettotronConfig:
+    """Create model configuration from arguments or YAML config."""
+    # Priority: YAML 'model' section > --model-config-file > presets
+    if yaml_config and 'model' in yaml_config:
+        # Use model config from main YAML file
+        model_dict = yaml_config['model']
+        logger.info(f"Using model config from YAML: vocab_size={model_dict.get('vocab_size', 'N/A')}")
+        return BaguettotronConfig.from_dict(model_dict)
+    elif args.model_config == '321m':
         return BaguettotronConfig.baguettotron_321m()
     elif args.model_config == 'tiny':
         return BaguettotronConfig()  # Default tiny config
@@ -220,7 +245,7 @@ def create_model_config(args: argparse.Namespace) -> BaguettotronConfig:
         if not args.model_config_file:
             raise ValueError("--model-config-file required for custom config")
         config_dict = load_config_file(args.model_config_file)
-        return BaguettotronConfig(**config_dict)
+        return BaguettotronConfig.from_dict(config_dict)
     else:
         raise ValueError(f"Unknown model config: {args.model_config}")
 
@@ -230,12 +255,83 @@ def main():
     args = parse_args()
 
     # Load config from file if provided
+    yaml_config = None
     if args.config:
-        config_dict = load_config_file(args.config)
-        # Update args with config
-        for key, value in config_dict.items():
-            if hasattr(args, key):
-                setattr(args, key, value)
+        yaml_config = load_config_file(args.config)
+        config_dict = yaml_config
+        # Update args with config - support hierarchical structure
+        # Map YAML structure to args attributes
+        config_mapping = {
+            # Toplevel
+            'seed': 'seed',
+            'device': 'device',
+            # Model config
+            'model.config': 'model_config',
+            # Train config (support multiple naming conventions)
+            'training.epochs': 'epochs',
+            'training.max_epochs': 'epochs',
+            'train.epochs': 'epochs',
+            'training.batch_size': 'batch_size',
+            'train.batch_size': 'batch_size',
+            'training.gradient_accumulation_steps': 'gradient_accumulation_steps',
+            'train.accum_steps': 'gradient_accumulation_steps',
+            'training.learning_rate': 'learning_rate',
+            'train.lr': 'learning_rate',
+            'training.weight_decay': 'weight_decay',
+            'train.weight_decay': 'weight_decay',
+            'training.warmup_steps': 'warmup_steps',
+            'train.warmup_steps': 'warmup_steps',
+            'training.max_steps': 'max_steps',
+            'train.max_steps': 'max_steps',
+            'training.max_grad_norm': 'max_grad_norm',
+            'train.grad_clip': 'max_grad_norm',
+            'training.scheduler': 'scheduler',
+            'train.scheduler': 'scheduler',
+            'training.mixed_precision': 'mixed_precision',
+            'train.amp': 'mixed_precision',
+            'training.save_interval': 'save_interval',
+            'train.save_steps': 'save_interval',
+            'training.save_total_limit': 'save_total_limit',
+            'train.save_total_limit': 'save_total_limit',
+            'train.keep_last_checkpoints': 'save_total_limit',  # Alias
+            'training.eval_interval': 'eval_interval',
+            'train.eval_every': 'eval_interval',
+            'training.log_interval': 'log_interval',
+            'train.log_every': 'log_interval',
+            'training.output_dir': 'output_dir',
+            'train.output_dir': 'output_dir',
+            'training.block_size': 'block_size',
+            'train.block_size': 'block_size',
+            'training.use_compile': 'compile',
+            'train.use_compile': 'compile',
+            # Data config (support multiple naming conventions)
+            'data.train_data': 'train_data',
+            'dataset.train_data': 'train_data',
+            'data.datasets': 'datasets',
+            'dataset.datasets': 'datasets',
+            'data.dataset_weights': 'dataset_weights',
+            'dataset.dataset_weights': 'dataset_weights',
+        }
+
+        # Flatten hierarchical config
+        def flatten_dict(d, parent_key='', sep='.'):
+            items = []
+            for k, v in d.items():
+                new_key = f"{parent_key}{sep}{k}" if parent_key else k
+                if isinstance(v, dict):
+                    items.extend(flatten_dict(v, new_key, sep=sep).items())
+                else:
+                    items.append((new_key, v))
+            return dict(items)
+
+        flat_config = flatten_dict(config_dict)
+
+        # Apply config to args
+        for config_key, arg_name in config_mapping.items():
+            if config_key in flat_config and hasattr(args, arg_name):
+                value = flat_config[config_key]
+                # Don't override CLI arguments if they differ from defaults
+                setattr(args, arg_name, value)
 
     # Set random seed
     torch.manual_seed(args.seed)
@@ -251,7 +347,7 @@ def main():
 
     # Create model
     logger.info("Creating model...")
-    model_config = create_model_config(args)
+    model_config = create_model_config(args, yaml_config)
     model = BaguettotronForCausalLM(model_config)
 
     num_params = model.count_parameters()
@@ -263,13 +359,54 @@ def main():
         checkpoint = torch.load(args.checkpoint, map_location='cpu')
         model.load_state_dict(checkpoint['model_state_dict'])
 
-    # Create datasets
+    # Create datasets - support both single and multi-dataset modes
     logger.info("Loading training data...")
-    train_dataset = TextDataset(
-        args.train_data,
-        block_size=args.block_size,
-    )
-    logger.info(f"Training examples: {len(train_dataset)}")
+
+    # Validate that we have either datasets or train_data
+    if not (hasattr(args, 'datasets') and args.datasets) and not (hasattr(args, 'train_data') and args.train_data):
+        logger.error("❌ No training data specified!")
+        logger.error("Either provide:")
+        logger.error("  1. --train-data data/train.json")
+        logger.error("  2. --datasets synth,wikipedia")
+        logger.error("  3. YAML config with dataset.train_data or dataset.datasets")
+        sys.exit(1)
+
+    # Check if using multi-dataset mode
+    if hasattr(args, 'datasets') and args.datasets:
+        from baguettotron.data.multi_dataset import create_multi_dataset
+
+        # Parse weights if provided
+        if hasattr(args, 'dataset_weights') and args.dataset_weights:
+            weights = [float(w.strip()) for w in args.dataset_weights.split(',')]
+        else:
+            weights = None  # Equal weights
+
+        logger.info(f"Multi-dataset mode: {args.datasets}")
+        if weights:
+            logger.info(f"Dataset weights: {weights}")
+
+        # Use the create_multi_dataset helper function
+        try:
+            train_dataset = create_multi_dataset(
+                datasets=args.datasets,
+                weights=weights,
+                data_dir='data',
+                block_size=args.block_size,
+            )
+        except FileNotFoundError as e:
+            logger.error(f"❌ {e}")
+            logger.error(f"\nPrepare missing datasets first:")
+            dataset_names = [d.strip() for d in args.datasets.split(',') if d.strip()]
+            for name in dataset_names:
+                logger.error(f"   ./baguettotron dataset prepare --type {name} --tokenize")
+            sys.exit(1)
+    else:
+        # Single dataset mode
+        train_dataset = TextDataset(
+            args.train_data,
+            block_size=args.block_size,
+        )
+        logger.info(f"Training examples: {len(train_dataset)}")
 
     eval_dataset = None
     if args.eval_data:
@@ -280,12 +417,17 @@ def main():
         )
         logger.info(f"Evaluation examples: {len(eval_dataset)}")
 
-    # Create dataloaders
+    # Create dataloaders with collator for padding
+    from baguettotron.data import DataCollatorForLanguageModeling
+
+    collator = DataCollatorForLanguageModeling(mlm=False)
+
     train_dataloader = create_dataloader(
         train_dataset,
         batch_size=args.batch_size,
         shuffle=True,
         num_workers=args.num_workers,
+        collate_fn=collator,
     )
 
     eval_dataloader = None
@@ -295,6 +437,7 @@ def main():
             batch_size=args.batch_size,
             shuffle=False,
             num_workers=args.num_workers,
+            collate_fn=collator,
         )
 
     # Create optimizer
@@ -331,6 +474,7 @@ def main():
         log_interval=args.log_interval,
         eval_interval=args.eval_interval,
         save_interval=args.save_interval,
+        save_total_limit=args.save_total_limit,
         output_dir=args.output_dir,
         mixed_precision=args.mixed_precision,
         use_compile=args.compile,

@@ -161,11 +161,56 @@ class GroupedQueryAttention(nn.Module):
             key = key.repeat_interleave(self.num_kv_groups, dim=1)
             value = value.repeat_interleave(self.num_kv_groups, dim=1)
 
+        # ✅ FIX #2: Properly combine causal mask with padding mask
         # Prepare attention mask if provided
-        if attention_mask is not None and attention_mask.dtype == torch.bool:
-            # Convert boolean mask to additive mask
-            attention_mask = torch.zeros_like(attention_mask, dtype=query.dtype)
-            attention_mask.masked_fill_(~attention_mask, float("-inf"))
+        if attention_mask is not None:
+            # Handle different mask shapes
+            if attention_mask.dim() == 2:
+                # Shape: (batch, seq_len) -> (batch, 1, 1, seq_len)
+                # This broadcasts to (batch, num_heads, seq_len, seq_len)
+                attention_mask = attention_mask.unsqueeze(1).unsqueeze(2)
+            elif attention_mask.dim() == 3:
+                # Shape: (batch, 1, seq_len) -> (batch, 1, 1, seq_len)
+                attention_mask = attention_mask.unsqueeze(2)
+
+            # Convert boolean or int mask to additive mask if needed
+            if attention_mask.dtype == torch.bool or attention_mask.dtype == torch.long:
+                # Create float mask with -inf for masked positions
+                float_mask = torch.zeros_like(attention_mask, dtype=query.dtype)
+                # For bool: True = attend, False = mask
+                # For long: 1 = attend, 0 = mask
+                if attention_mask.dtype == torch.bool:
+                    float_mask.masked_fill_(~attention_mask, float("-inf"))
+                else:  # long
+                    float_mask.masked_fill_(attention_mask == 0, float("-inf"))
+                attention_mask = float_mask
+
+            # Combine with causal mask if needed
+            if is_causal:
+                # Create causal mask: upper triangle = True (positions to mask)
+                causal_mask = torch.triu(
+                    torch.ones(seq_len, seq_len, dtype=torch.bool, device=hidden_states.device),
+                    diagonal=1
+                )
+                # Expand to (1, 1, L, L) for broadcasting
+                causal_mask = causal_mask.unsqueeze(0).unsqueeze(0)
+
+                # Expand attention_mask to full (B, 1, L, L) shape for causal combination
+                # Current shape: (B, 1, 1, L) - broadcast to (B, 1, L, L)
+                expanded_mask = attention_mask.expand(-1, -1, seq_len, -1)
+
+                # Apply causal mask to combined mask
+                expanded_mask = expanded_mask.clone()
+                expanded_mask.masked_fill_(causal_mask, float("-inf"))
+                attention_mask = expanded_mask
+
+                # Use manual mask, not automatic causal
+                is_causal_flag = False
+            else:
+                is_causal_flag = False
+        else:
+            # No padding mask, use automatic causal masking
+            is_causal_flag = is_causal
 
         # Compute attention using scaled_dot_product_attention
         # This automatically handles causal masking and is optimized
@@ -175,7 +220,7 @@ class GroupedQueryAttention(nn.Module):
             value,
             attn_mask=attention_mask,
             dropout_p=self.attention_dropout if self.training else 0.0,
-            is_causal=is_causal and attention_mask is None,  # Use causal only if no custom mask
+            is_causal=is_causal_flag,  # ✅ FIX #2: Use corrected flag
         )
 
         # Reshape back: (batch, num_heads, seq_len, head_dim) -> (batch, seq_len, hidden_size)

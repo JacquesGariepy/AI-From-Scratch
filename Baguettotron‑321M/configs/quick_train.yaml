@@ -1,0 +1,27 @@
+# Quick Training Configuration for Baguettotron
+# Minimal config for quick testing
+
+seed: 1234
+device: cuda
+
+# Model
+model:
+  config: "321m"  # Use official 321M config
+
+# Training
+train:
+  epochs: 1
+  batch_size: 2
+  accum_steps: 1
+  lr: 3.0e-4
+  warmup_steps: 100
+  save_steps: 500
+  save_total_limit: 3
+  eval_every: 500
+  log_every: 10
+  output_dir: "outputs/quick-train"
+  amp: true
+
+# Data
+data:
+  train_data: "data/train.json"

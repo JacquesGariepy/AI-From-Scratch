@@ -1,0 +1,74 @@
+# Small model configuration for RTX 3090 with correct vocab_size
+# Designed for training with real tokenized data (vocab_size=65536)
+# Memory-optimized for RTX 3090 (24GB VRAM)
+
+model:
+  # Must match tokenizer vocab_size
+  vocab_size: 65536              # Official Baguettotron tokenizer
+
+  # Small model architecture (fast training)
+  hidden_size: 256               # Reduced from 576 (321M)
+  num_hidden_layers: 4           # Reduced from 80 (321M)
+  num_attention_heads: 8         # Power of 2 for efficiency
+  num_key_value_heads: 4         # GQA with 2 queries per KV head
+  intermediate_size: 1024        # 4x hidden_size
+
+  # Position embeddings
+  max_position_embeddings: 512   # Shorter sequences for memory
+  rope_theta: 10000.0
+
+  # Normalization and activation
+  rms_norm_eps: 1.0e-5
+  hidden_activation: silu
+  attention_dropout: 0.0
+
+  # Embeddings
+  tie_word_embeddings: true      # Share input/output embeddings (saves memory)
+
+  # Generation
+  use_cache: true
+  initializer_range: 0.02
+
+  # Special tokens
+  bos_token_id: 1
+  eos_token_id: 2
+  pad_token_id: 0
+
+training:
+  # Memory-optimized batch settings
+  batch_size: 2                  # Can fit 2 sequences
+  gradient_accumulation_steps: 16  # Effective batch = 2 * 16 = 32
+  max_epochs: 10
+
+  # Sequence length
+  block_size: 512                # Matches max_position_embeddings
+
+  # Optimization
+  learning_rate: 3.0e-4
+  weight_decay: 0.1
+  warmup_steps: 100
+  max_grad_norm: 1.0
+  scheduler: cosine
+
+  # Mixed precision (essential for memory)
+  mixed_precision: true
+  use_compile: false             # Disable initially for stability
+
+  # Checkpointing
+  save_interval: 500
+  save_total_limit: 3
+  eval_interval: 250
+  log_interval: 10
+
+  # Output
+  output_dir: outputs/small_rtx3090
+
+dataset:
+  train_data: data/train.json
+  pad_token_id: 0
+  num_workers: 2
+  pin_memory: true
+
+# Estimated memory usage: ~12-16 GB VRAM
+# Training speed: ~50-100 steps/sec
+# Model size: ~67M parameters

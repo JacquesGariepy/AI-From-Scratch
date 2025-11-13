@@ -1,0 +1,46 @@
+# Ultra-tiny model with correct vocab_size for testing
+# Use this for quick experiments with real tokenized data
+
+model:
+  vocab_size: 65536              # Must match your tokenizer
+  hidden_size: 64                # Very small for fast testing
+  num_hidden_layers: 2
+  num_attention_heads: 4
+  num_key_value_heads: 2
+  intermediate_size: 256
+  max_position_embeddings: 256   # Very short sequences
+  rope_theta: 10000.0
+  rms_norm_eps: 1.0e-6
+  hidden_activation: silu
+  attention_dropout: 0.0
+  tie_word_embeddings: true
+  use_cache: true
+  initializer_range: 0.02
+
+training:
+  batch_size: 4                  # Can handle more with tiny model
+  gradient_accumulation_steps: 8
+  max_epochs: 3
+  block_size: 256                # Short sequences
+  learning_rate: 5.0e-4
+  weight_decay: 0.1
+  warmup_steps: 50
+  max_grad_norm: 1.0
+  scheduler: cosine
+  mixed_precision: true
+  use_compile: false
+  save_interval: 250
+  save_total_limit: 2
+  eval_interval: 100
+  log_interval: 10
+  output_dir: outputs/tiny_correct
+
+dataset:
+  train_data: data/train.json
+  pad_token_id: 0
+  num_workers: 2
+  pin_memory: true
+
+# Memory: ~6-8 GB VRAM
+# Speed: ~200+ steps/sec
+# Model size: ~17M parameters (mostly vocab embeddings)

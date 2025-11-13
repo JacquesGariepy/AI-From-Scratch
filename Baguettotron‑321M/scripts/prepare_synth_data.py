@@ -66,19 +66,24 @@ def download_and_prepare_synth(
     # Load dataset
     print("\n📥 Downloading dataset...")
     try:
-        dataset = load_dataset('PleIAs/SYNTH', split=split)
+        # Use streaming for subsets to avoid downloading all shards
+        if max_samples:
+            print(f"   📊 Subset mode: streaming {max_samples:,} samples...")
+            print(f"   ⚡ Only downloading necessary data (not all {split} shards)...")
+            # Use streaming to avoid downloading everything
+            dataset = load_dataset('PleIAs/SYNTH', split=split, streaming=True)
+            is_streaming = True
+            print(f"   ✓ Streaming mode activated (will process {max_samples:,} samples)")
+        else:
+            print("   📦 Full download mode (will download all shards)...")
+            dataset = load_dataset('PleIAs/SYNTH', split=split)
+            is_streaming = False
+            print(f"   ✓ Total samples: {len(dataset):,}")
     except Exception as e:
         print(f"❌ Error loading dataset: {e}")
         print("\nℹ️  The SYNTH dataset might require authentication or have access restrictions.")
         print("   Try: huggingface-cli login")
         return
-
-    # Limit samples if requested
-    if max_samples:
-        dataset = dataset.select(range(min(max_samples, len(dataset))))
-        print(f"   Using subset: {len(dataset):,} samples")
-    else:
-        print(f"   Total samples: {len(dataset):,}")
 
     if tokenize:
         # Option 1: Pre-tokenize (faster training)
@@ -98,7 +103,12 @@ def download_and_prepare_synth(
         print(f"\n⚙️  Tokenizing dataset (block_size={block_size})...")
 
         token_sequences = []
-        for example in tqdm(dataset, desc="Tokenizing"):
+        count = 0
+
+        # Use tqdm with total if we know the size
+        pbar_total = max_samples if is_streaming and max_samples else (len(dataset) if not is_streaming else None)
+
+        for example in tqdm(dataset, desc="Tokenizing", total=pbar_total):
             # Extract text from example
             text = example.get('text', example.get('content', ''))
             if not text:
@@ -108,6 +118,11 @@ def download_and_prepare_synth(
             tokens = tokenizer.encode(text, max_length=block_size, truncation=True)
             if len(tokens) > 10:  # Skip very short sequences
                 token_sequences.append(tokens)
+                count += 1
+
+            # Stop early if we're streaming and reached max_samples
+            if is_streaming and max_samples and count >= max_samples:
+                break
 
         # Save tokenized data
         output_file = output_dir / f'{split}_tokens.json'
@@ -123,14 +138,22 @@ def download_and_prepare_synth(
         output_file = output_dir / f'{split}.jsonl'
         print(f"\n💾 Saving raw text to {output_file}...")
 
+        count = 0
+        pbar_total = max_samples if is_streaming and max_samples else (len(dataset) if not is_streaming else None)
+
         with open(output_file, 'w', encoding='utf-8') as f:
-            for example in tqdm(dataset, desc="Saving"):
+            for example in tqdm(dataset, desc="Saving", total=pbar_total):
                 text = example.get('text', example.get('content', ''))
                 if text:
                     json_line = json.dumps({'text': text}, ensure_ascii=False)
                     f.write(json_line + '\n')
+                    count += 1
 
-        print(f"   ✓ Saved {len(dataset):,} examples")
+                # Stop early if streaming and reached max_samples
+                if is_streaming and max_samples and count >= max_samples:
+                    break
+
+        print(f"   ✓ Saved {count:,} examples")
 
     print("\n" + "=" * 70)
     print("✅ Dataset preparation complete!")

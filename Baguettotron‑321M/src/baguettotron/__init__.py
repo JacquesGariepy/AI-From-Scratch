@@ -39,6 +39,7 @@ Modules:
     data: Dataset loaders and preprocessing utilities
     training: Training loops, optimizers, and utilities
     generation: Text generation and sampling strategies
+    tokenization: Tokenizer loading with automatic fallback
 
 References:
     - Official Model: https://huggingface.co/PleIAs/Baguettotron
@@ -60,6 +61,7 @@ from .model import (
     RMSNorm,
     RotaryEmbedding,
 )
+from .tokenization import load_tokenizer, TokenizerWrapper
 
 __all__ = [
     # Version info
@@ -70,6 +72,9 @@ __all__ = [
     "BaguettotronConfig",
     # Main model
     "BaguettotronForCausalLM",
+    # Tokenization
+    "load_tokenizer",
+    "TokenizerWrapper",
     # Core components (for advanced usage)
     "TransformerBlock",
     "TransformerDecoder",

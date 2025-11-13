@@ -1,0 +1,306 @@
+#!/usr/bin/env python3
+"""
+Baguettotron CLI - Main entry point for all Baguettotron operations.
+
+A clean, modern CLI for training, generating, and managing Baguettotron models.
+
+Usage:
+    baguettotron train --data data/train.json --config tiny
+    baguettotron generate --checkpoint outputs/model.pt --prompt "Hello"
+    baguettotron dataset prepare --type wikipedia --lang simple
+    baguettotron dataset validate --file data/train.json
+    baguettotron --help
+"""
+
+import sys
+import argparse
+from pathlib import Path
+
+# Add src to path
+sys.path.insert(0, str(Path(__file__).parent / "src"))
+
+
+def create_parser() -> argparse.ArgumentParser:
+    """Create the main argument parser with subcommands."""
+    parser = argparse.ArgumentParser(
+        prog='baguettotron',
+        description='Baguettotron - Train and deploy 321M parameter language models',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Train with single dataset
+  baguettotron train --data data/train.json --config tiny --epochs 10
+
+  # Train with auto-detected datasets
+  baguettotron train --datasets auto --config tiny --epochs 10
+
+  # Train with specific datasets and weights
+  baguettotron train --datasets synth,wikipedia --dataset-weights 0.7,0.3 --config 321m
+
+  # Generate text
+  baguettotron generate --checkpoint outputs/model.pt --prompt "Hello world"
+
+  # Prepare Wikipedia dataset
+  baguettotron dataset prepare --type wikipedia --lang simple
+
+  # Validate dataset
+  baguettotron dataset validate --file data/train.json
+
+For more information, visit: https://github.com/PleIAs/Baguettotron
+        """
+    )
+
+    parser.add_argument(
+        '--version',
+        action='version',
+        version='Baguettotron 1.0.0'
+    )
+
+    subparsers = parser.add_subparsers(dest='command', help='Available commands')
+
+    # Train command
+    train_parser = subparsers.add_parser(
+        'train',
+        help='Train a Baguettotron model',
+        description='Train a language model from scratch or fine-tune a checkpoint'
+    )
+    # Data arguments - support both single file and multi-dataset
+    train_parser.add_argument('--data', type=str, help='Training data file (traditional single-dataset)')
+    train_parser.add_argument('--datasets', type=str, help='Comma-separated dataset names or "auto" for auto-detection')
+    train_parser.add_argument('--dataset-weights', type=str, help='Comma-separated weights for each dataset (e.g., "0.7,0.3")')
+
+    # Model and training arguments
+    train_parser.add_argument('--config', type=str, default='321m', choices=['tiny', '321m', 'custom'], help='Model configuration')
+    train_parser.add_argument('--epochs', type=int, default=10, help='Number of epochs')
+    train_parser.add_argument('--batch-size', type=int, default=32, help='Batch size')
+    train_parser.add_argument('--output-dir', type=str, default='outputs', help='Output directory')
+
+    # Configuration file
+    train_parser.add_argument('--config-file', type=str, help='YAML configuration file (overrides other arguments)')
+
+    # Advanced training arguments
+    train_parser.add_argument('--warmup-steps', type=int, default=1000, help='Number of warmup steps for learning rate')
+    train_parser.add_argument('--save-steps', type=int, default=1000, help='Save checkpoint every N steps')
+    train_parser.add_argument('--save-total-limit', type=int, help='Maximum number of checkpoints to keep (default: keep all)')
+    train_parser.add_argument('--gradient-accumulation-steps', type=int, default=1, help='Number of gradient accumulation steps')
+    train_parser.add_argument('--max-length', type=int, default=2048, help='Maximum sequence length (block size)')
+    train_parser.add_argument('--mixed-precision', action='store_true', help='Enable mixed precision training (AMP)')
+    train_parser.add_argument('--learning-rate', type=float, default=3e-4, help='Learning rate')
+
+    # Generate command
+    generate_parser = subparsers.add_parser(
+        'generate',
+        help='Generate text with a trained model',
+        description='Generate text using a trained Baguettotron model'
+    )
+    generate_parser.add_argument('--checkpoint', type=str, required=True, help='Model checkpoint path')
+    generate_parser.add_argument('--config', type=str, default='321m', choices=['tiny', '321m'], help='Model configuration (should match checkpoint)')
+    generate_parser.add_argument('--prompt', type=str, default='', help='Generation prompt')
+    generate_parser.add_argument('--max-length', type=int, default=100, help='Maximum generation length')
+    generate_parser.add_argument('--temperature', type=float, default=1.0, help='Sampling temperature')
+
+    # Chat mode arguments
+    generate_parser.add_argument('--chat-mode', action='store_true', help='Enable chat mode with conversation formatting')
+    generate_parser.add_argument('--chat-template', type=str, help='Path to chat_template.json')
+    generate_parser.add_argument('--system-prompt', type=str, help='System prompt for chat mode')
+
+    # Additional generation arguments
+    generate_parser.add_argument('--interactive', action='store_true', help='Run in interactive mode')
+    generate_parser.add_argument('--greedy', action='store_true', help='Use greedy decoding')
+    generate_parser.add_argument('--top-k', type=int, help='Top-k sampling')
+    generate_parser.add_argument('--top-p', type=float, help='Nucleus sampling (top-p)')
+    generate_parser.add_argument('--tokenizer', type=str, default='auto', choices=['auto', 'baguettotron', 'gpt2', 'char'], help='Tokenizer type')
+
+    # Dataset command
+    dataset_parser = subparsers.add_parser(
+        'dataset',
+        help='Dataset operations',
+        description='Prepare, validate, and manage datasets'
+    )
+    dataset_subparsers = dataset_parser.add_subparsers(dest='dataset_command', help='Dataset operations')
+
+    # Dataset prepare
+    prepare_parser = dataset_subparsers.add_parser('prepare', help='Prepare a dataset')
+    prepare_parser.add_argument('--type', type=str, choices=['wikipedia', 'synth', 'demo'], required=True, help='Dataset type')
+    prepare_parser.add_argument('--lang', type=str, choices=['simple', 'fr', 'en'], help='Language (for Wikipedia)')
+    prepare_parser.add_argument('--max-samples', type=int, help='Maximum samples')
+    prepare_parser.add_argument('--tokenize', action='store_true', help='Pre-tokenize data')
+
+    # Dataset validate
+    validate_parser = dataset_subparsers.add_parser('validate', help='Validate a dataset')
+    validate_parser.add_argument('--file', type=str, required=True, help='Dataset file to validate')
+
+    # Dataset list
+    list_parser = dataset_subparsers.add_parser('list', help='List available datasets')
+
+    return parser
+
+
+def run_train(args):
+    """Run training command."""
+    import subprocess
+
+    script_path = Path(__file__).parent / 'scripts' / 'train.py'
+    cmd = [sys.executable, str(script_path)]
+
+    # Config file (if specified)
+    if args.config_file:
+        cmd.extend(['--config', args.config_file])
+
+    # Data arguments - support both modes
+    if args.datasets:
+        # Multi-dataset mode
+        cmd.extend(['--datasets', args.datasets])
+        if args.dataset_weights:
+            cmd.extend(['--dataset-weights', args.dataset_weights])
+    elif args.data:
+        # Traditional single-dataset mode
+        cmd.extend(['--train-data', args.data])
+    elif not args.config_file:
+        # Neither data nor config file specified - error
+        print("Error: Either --data, --datasets, or --config-file (with data path) must be specified")
+        return 1
+    # If config_file is specified without --data, let train.py read data from YAML
+
+    # Model and training arguments
+    cmd.extend([
+        '--model-config', args.config,
+        '--epochs', str(args.epochs),
+        '--batch-size', str(args.batch_size),
+        '--output-dir', args.output_dir,
+    ])
+
+    # Advanced training arguments
+    if args.warmup_steps:
+        cmd.extend(['--warmup-steps', str(args.warmup_steps)])
+    if args.save_steps:
+        cmd.extend(['--save-steps', str(args.save_steps)])
+    if args.save_total_limit:
+        cmd.extend(['--save-total-limit', str(args.save_total_limit)])
+    if args.gradient_accumulation_steps:
+        cmd.extend(['--gradient-accumulation-steps', str(args.gradient_accumulation_steps)])
+    if args.max_length:
+        cmd.extend(['--max-length', str(args.max_length)])
+    if args.mixed_precision:
+        cmd.append('--mixed-precision')
+    if args.learning_rate:
+        cmd.extend(['--learning-rate', str(args.learning_rate)])
+
+    return subprocess.run(cmd).returncode
+
+
+def run_generate(args):
+    """Run generation command."""
+    import subprocess
+
+    script_path = Path(__file__).parent / 'scripts' / 'generate.py'
+    cmd = [
+        sys.executable,
+        str(script_path),
+        '--checkpoint', args.checkpoint,
+        '--config', args.config,
+        '--max-new-tokens', str(args.max_length),
+        '--temperature', str(args.temperature),
+    ]
+
+    # Add prompt if provided (not required for interactive mode)
+    if args.prompt:
+        cmd.extend(['--prompt', args.prompt])
+
+    # Chat mode arguments
+    if args.chat_mode:
+        cmd.append('--chat-mode')
+    if hasattr(args, 'chat_template') and args.chat_template:
+        cmd.extend(['--chat-template', args.chat_template])
+    if hasattr(args, 'system_prompt') and args.system_prompt:
+        cmd.extend(['--system-prompt', args.system_prompt])
+
+    # Additional generation arguments
+    if hasattr(args, 'interactive') and args.interactive:
+        cmd.append('--interactive')
+    if hasattr(args, 'greedy') and args.greedy:
+        cmd.append('--greedy')
+    if hasattr(args, 'top_k') and args.top_k:
+        cmd.extend(['--top-k', str(args.top_k)])
+    if hasattr(args, 'top_p') and args.top_p:
+        cmd.extend(['--top-p', str(args.top_p)])
+    if hasattr(args, 'tokenizer') and args.tokenizer:
+        cmd.extend(['--tokenizer', args.tokenizer])
+
+    return subprocess.run(cmd).returncode
+
+
+def run_dataset_prepare(args):
+    """Run dataset preparation."""
+    import subprocess
+
+    script_map = {
+        'wikipedia': 'prepare_wikipedia_data.py',
+        'synth': 'prepare_synth_data.py',
+        'demo': 'prepare_demo_data.py',
+    }
+
+    script_path = Path(__file__).parent / 'scripts' / script_map[args.type]
+    cmd = [sys.executable, str(script_path)]
+
+    if args.lang:
+        cmd.extend(['--lang', args.lang])
+    if args.max_samples:
+        cmd.extend(['--max-samples', str(args.max_samples)])
+    if args.tokenize:
+        cmd.append('--tokenize')
+
+    return subprocess.run(cmd).returncode
+
+
+def run_dataset_validate(args):
+    """Run dataset validation."""
+    import subprocess
+
+    script_path = Path(__file__).parent / 'scripts' / 'validate_dataset.py'
+    cmd = [sys.executable, str(script_path), args.file]
+
+    return subprocess.run(cmd).returncode
+
+
+def run_dataset_list(args):
+    """List available datasets."""
+    import subprocess
+
+    script_path = Path(__file__).parent / 'scripts' / 'validate_dataset.py'
+    cmd = [sys.executable, str(script_path), '--list']
+
+    return subprocess.run(cmd).returncode
+
+
+def main():
+    """Main CLI entry point."""
+    parser = create_parser()
+    args = parser.parse_args()
+
+    if not args.command:
+        parser.print_help()
+        return 1
+
+    # Route to appropriate handler
+    if args.command == 'train':
+        return run_train(args)
+    elif args.command == 'generate':
+        return run_generate(args)
+    elif args.command == 'dataset':
+        if not args.dataset_command:
+            parser.parse_args(['dataset', '--help'])
+            return 1
+
+        if args.dataset_command == 'prepare':
+            return run_dataset_prepare(args)
+        elif args.dataset_command == 'validate':
+            return run_dataset_validate(args)
+        elif args.dataset_command == 'list':
+            return run_dataset_list(args)
+
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

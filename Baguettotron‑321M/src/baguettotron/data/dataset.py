@@ -144,29 +144,43 @@ class SYNTHDataset(Dataset):
         self.examples = self._load_data()
 
     def _load_data(self) -> List[str]:
-        """Load text examples from file."""
+        """Load text examples from file (supports both JSON array and JSONL formats)."""
         examples = []
 
         with open(self.data_path, 'r', encoding='utf-8') as f:
-            # Try JSONL format first
-            try:
-                for line in f:
-                    if line.strip():
-                        item = json.loads(line)
-                        # Extract text field (adjust based on SYNTH format)
-                        text = item.get('text', item.get('content', ''))
-                        if text:
-                            examples.append(text)
-            except json.JSONDecodeError:
-                # Fall back to plain JSON
-                f.seek(0)
-                data = json.load(f)
+            content = f.read().strip()
+
+            # Detect format: JSON array starts with '[', JSONL doesn't
+            if content.startswith('['):
+                # JSON array format
+                data = json.loads(content)
                 if isinstance(data, list):
-                    examples = [
-                        item.get('text', item.get('content', ''))
-                        for item in data
-                        if item.get('text') or item.get('content')
-                    ]
+                    for item in data:
+                        if isinstance(item, dict):
+                            # Extract text field (adjust based on SYNTH format)
+                            text = item.get('text', item.get('content', ''))
+                            if text:
+                                examples.append(text)
+                        elif isinstance(item, str):
+                            # Direct string entries
+                            examples.append(item)
+            else:
+                # JSONL format (one JSON object per line)
+                for line in content.split('\n'):
+                    if line.strip():
+                        try:
+                            item = json.loads(line)
+                            if isinstance(item, dict):
+                                # Extract text field
+                                text = item.get('text', item.get('content', ''))
+                                if text:
+                                    examples.append(text)
+                            elif isinstance(item, str):
+                                examples.append(item)
+                        except json.JSONDecodeError as e:
+                            # Skip invalid lines
+                            print(f"Warning: Skipping invalid JSON line: {e}")
+                            continue
 
         return examples
 
@@ -214,6 +228,7 @@ def create_dataloader(
     shuffle: bool = True,
     num_workers: int = 0,
     pin_memory: bool = True,
+    collate_fn: Optional[Any] = None,
 ) -> DataLoader:
     """
     Create a DataLoader for the given dataset.
@@ -224,6 +239,7 @@ def create_dataloader(
         shuffle: Whether to shuffle data at each epoch
         num_workers: Number of worker processes for data loading
         pin_memory: Whether to pin memory for faster GPU transfer
+        collate_fn: Optional collate function for custom batching (e.g., for variable-length sequences)
 
     Returns:
         DataLoader instance
@@ -246,6 +262,7 @@ def create_dataloader(
         shuffle=shuffle,
         num_workers=num_workers,
         pin_memory=pin_memory,
+        collate_fn=collate_fn,
     )
 
 

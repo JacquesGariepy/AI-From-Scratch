@@ -88,6 +88,7 @@ class Trainer:
         log_interval: int = 10,
         eval_interval: int = 1000,
         save_interval: int = 1000,
+        save_total_limit: Optional[int] = None,
         output_dir: str | Path = 'outputs',
         mixed_precision: bool = False,
         use_compile: bool = False,
@@ -104,6 +105,7 @@ class Trainer:
         self.log_interval = log_interval
         self.eval_interval = eval_interval
         self.save_interval = save_interval
+        self.save_total_limit = save_total_limit
         self.output_dir = Path(output_dir)
         self.mixed_precision = mixed_precision
         self.use_compile = use_compile
@@ -123,12 +125,15 @@ class Trainer:
                 logger.warning(f"Failed to compile model: {e}")
 
         # Mixed precision scaler
-        self.scaler = torch.cuda.amp.GradScaler() if mixed_precision else None
+        self.scaler = torch.amp.GradScaler('cuda') if mixed_precision else None
 
         # Training state
         self.global_step = 0
         self.epoch = 0
         self.best_eval_loss = float('inf')
+
+        # Track saved checkpoints for cleanup
+        self.saved_checkpoints = []
 
     def train(self) -> Dict[str, Any]:
         """
@@ -161,10 +166,10 @@ class Trainer:
                 # Save best model
                 if eval_metrics['loss'] < self.best_eval_loss:
                     self.best_eval_loss = eval_metrics['loss']
-                    self.save_checkpoint('best_model.pt')
+                    self.save_checkpoint(filename='best_model')
 
             # Save epoch checkpoint
-            self.save_checkpoint(f'checkpoint_epoch_{epoch + 1}.pt')
+            self.save_checkpoint(step=self.global_step)
 
         training_time = time.time() - start_time
         logger.info(f"Training completed in {training_time:.2f} seconds")
@@ -189,10 +194,29 @@ class Trainer:
             loss = self._training_step(batch)
             epoch_loss += loss
 
+            # Monitor GPU memory usage
+            if torch.cuda.is_available() and (step + 1) % 50 == 0:
+                mem_allocated = torch.cuda.memory_allocated() / 1024**3
+                mem_reserved = torch.cuda.memory_reserved() / 1024**3
+                mem_total = torch.cuda.get_device_properties(0).total_memory / 1024**3
+                mem_percent = (mem_allocated / mem_total) * 100
+
+                if mem_percent > 90:
+                    logger.warning(f"GPU memory usage high: {mem_percent:.1f}% ({mem_allocated:.2f}GB / {mem_total:.2f}GB)")
+                    # Clear cache to prevent OOM
+                    torch.cuda.empty_cache()
+
             # Update progress bar
             if (step + 1) % self.log_interval == 0:
                 avg_loss = epoch_loss / (step + 1)
-                progress_bar.set_postfix({'loss': f'{avg_loss:.4f}'})
+                if torch.cuda.is_available():
+                    mem_allocated = torch.cuda.memory_allocated() / 1024**3
+                    progress_bar.set_postfix({
+                        'loss': f'{avg_loss:.4f}',
+                        'gpu_mem': f'{mem_allocated:.1f}GB'
+                    })
+                else:
+                    progress_bar.set_postfix({'loss': f'{avg_loss:.4f}'})
 
             # Evaluation
             if (self.global_step + 1) % self.eval_interval == 0 and self.eval_dataloader is not None:
@@ -200,9 +224,9 @@ class Trainer:
                 logger.info(f"Step {self.global_step + 1} - Eval loss: {eval_metrics['loss']:.4f}")
                 self.model.train()
 
-            # Save checkpoint
+            # Save checkpoint by steps
             if (self.global_step + 1) % self.save_interval == 0:
-                self.save_checkpoint(f'checkpoint_step_{self.global_step + 1}.pt')
+                self.save_checkpoint(step=self.global_step + 1)
 
             self.global_step += 1
 
@@ -210,12 +234,12 @@ class Trainer:
 
     def _training_step(self, batch: Dict[str, torch.Tensor]) -> float:
         """Execute a single training step."""
-        # Move batch to device
-        batch = {k: v.to(self.device) for k, v in batch.items()}
+        # Move batch to device (non-blocking for better performance)
+        batch = {k: v.to(self.device, non_blocking=True) for k, v in batch.items()}
 
         # Forward pass with mixed precision if enabled
         if self.mixed_precision:
-            with torch.cuda.amp.autocast():
+            with torch.amp.autocast('cuda'):
                 outputs = self.model(batch['input_ids'], attention_mask=batch.get('attention_mask'))
                 loss = self._compute_loss(outputs, batch['labels'])
         else:
@@ -311,26 +335,70 @@ class Trainer:
             'perplexity': perplexity,
         }
 
-    def save_checkpoint(self, filename: str) -> None:
+    def save_checkpoint(self, filename: str = None, step: int = None) -> None:
         """
-        Save a checkpoint.
+        Save a checkpoint with separate model.pt and trainer_state.pt files.
+
+        Creates a directory structure like: ckpt_12000/model.pt, ckpt_12000/trainer_state.pt
 
         Args:
-            filename: Name of the checkpoint file
+            filename: Deprecated - use step instead
+            step: Training step number (uses global_step if None)
         """
-        checkpoint_path = self.output_dir / filename
+        import json
+        import shutil
 
-        checkpoint = {
-            'model_state_dict': self.model.state_dict(),
+        # Use global_step if no step provided
+        if step is None:
+            step = self.global_step
+
+        # Create checkpoint directory
+        if filename and not filename.endswith('.pt'):
+            # Old style: convert to step-based
+            checkpoint_dir = self.output_dir / filename
+        else:
+            # New style: ckpt_XXXXX/
+            checkpoint_dir = self.output_dir / f'ckpt_{step}'
+
+        checkpoint_dir.mkdir(parents=True, exist_ok=True)
+
+        # Save model separately
+        model_path = checkpoint_dir / 'model.pt'
+        torch.save(self.model.state_dict(), model_path)
+
+        # Save trainer state separately
+        trainer_state = {
             'optimizer_state_dict': self.optimizer.state_dict(),
             'scheduler_state_dict': self.scheduler.state_dict() if self.scheduler else None,
             'global_step': self.global_step,
             'epoch': self.epoch,
             'best_eval_loss': self.best_eval_loss,
+            'scaler_state_dict': self.scaler.state_dict() if self.scaler else None,
         }
+        trainer_state_path = checkpoint_dir / 'trainer_state.pt'
+        torch.save(trainer_state, trainer_state_path)
 
-        torch.save(checkpoint, checkpoint_path)
-        logger.info(f"Checkpoint saved to {checkpoint_path}")
+        # Save config if model has it
+        if hasattr(self.model, 'config'):
+            config_path = checkpoint_dir / 'config.json'
+            with open(config_path, 'w') as f:
+                json.dump(vars(self.model.config), f, indent=2)
+
+        logger.info(f"Checkpoint saved to {checkpoint_dir}")
+
+        # Track saved checkpoints for cleanup
+        self.saved_checkpoints.append(checkpoint_dir)
+
+        # Cleanup old checkpoints if limit set
+        if self.save_total_limit is not None and len(self.saved_checkpoints) > self.save_total_limit:
+            # Remove oldest checkpoints
+            checkpoints_to_remove = self.saved_checkpoints[:-self.save_total_limit]
+            for old_checkpoint in checkpoints_to_remove:
+                if old_checkpoint.exists() and old_checkpoint.is_dir():
+                    shutil.rmtree(old_checkpoint)
+                    logger.info(f"Removed old checkpoint: {old_checkpoint}")
+            # Keep only recent checkpoints in list
+            self.saved_checkpoints = self.saved_checkpoints[-self.save_total_limit:]
 
     def load_checkpoint(self, checkpoint_path: str | Path) -> None:
         """

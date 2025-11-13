@@ -1,211 +1,360 @@
-# Baguettotron-321M - Reverse Engineering Implementation
+# Baguettotron-321M
 
 [![Not Affiliated](https://img.shields.io/badge/⚠️%20NOT%20AFFILIATED-with%20PleIAs-red)](DISCLAIMER.md)
-[![Status](https://img.shields.io/badge/status-Educational%20%2F%20Reverse%20Engineering-yellow)](DISCLAIMER.md)
+[![Status](https://img.shields.io/badge/status-Educational-yellow)](DISCLAIMER.md)
 [![Author](https://img.shields.io/badge/author-Jacques%20Gariépy-blue)](https://github.com/JacquesGariepy)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
-
 [![Tests](https://img.shields.io/badge/tests-passing-brightgreen)](tests/)
-[![Parameters](https://img.shields.io/badge/parameters-320.96M-blue)](#architecture)
-[![Compatible](https://img.shields.io/badge/LlamaForCausalLM-compatible-orange)](#architecture)
+[![Parameters](https://img.shields.io/badge/parameters-320.96M-blue)](#architecture-overview)
 
-From-scratch implementation of **Baguettotron-321M**, a 321M parameter language model. This is an **independent reverse engineering attempt** by Jacques Gariépy based on analysis of the publicly available [PleIAs/Baguettotron](https://huggingface.co/PleIAs/Baguettotron) model architecture on HuggingFace.
+**A 321M parameter GPT-style transformer model built from scratch for educational purposes.**
 
-> **⚠️ Important Disclaimer**:
-> - **NOT AFFILIATED** with PleIAs or the Baguettotron team in any way
-> - This code was written **independently** through reverse engineering of the model architecture
-> - The Baguettotron/PleIAs team **has NOT shared, provided, or assisted** with this code in any way
-> - **ZERO collaboration or communication** with the original creators
-> - This is purely an educational exercise in understanding transformer architectures
-> - All implementation decisions are based **ONLY** on public information (config.json, model structure)
-> - For the **official model and weights**, see [PleIAs/Baguettotron](https://huggingface.co/PleIAs/Baguettotron)
+Learn how to implement, train, and deploy a modern large language model (LLM) with production-ready code, comprehensive tests, and detailed documentation. This project provides a complete, working implementation of a transformer-based causal language model compatible with the LlamaForCausalLM architecture.
 
-## 🎯 Features
+> **⚠️ Important**: This is an **independent reverse engineering project** created by Jacques Gariépy for educational purposes. It is **NOT AFFILIATED** with PleIAs or the Baguettotron team. The implementation is based solely on publicly available architecture information. See [DISCLAIMER.md](DISCLAIMER.md) for details.
 
-### Architecture
-- ✅ **100% compatible** with [LlamaForCausalLM](https://huggingface.co/docs/transformers/model_doc/llama)
-- ✅ Architecture **identical** to official [PleIAs/Baguettotron](https://huggingface.co/PleIAs/Baguettotron) model
-- ✅ **80 layers** - Deep "baguette" architecture optimized for reasoning
-- ✅ **SwiGLU** MLP (gate_proj, up_proj, down_proj)
-- ✅ **Grouped-Query Attention** (9 heads, 3 KV heads)
-- ✅ **RoPE** embeddings (theta=10000)
-- ✅ **Pre-normalization** with RMSNorm (eps=1e-5)
-- ✅ **Tied embeddings** (shared input/output weights)
+---
 
-### Reasoning Model Capabilities
-- ✅ **Reasoning architecture** - 80-layer depth designed for reasoning tasks
-- ⚠️ **Thinking tags** - Format documented (`<think>...</think>`)
-- ⚠️ **RAG support** - Source tags format (`<source_N>...</source_N>`)
-- ⚠️ **Qwen-style chat** - Instruction format (`<|im_start|>`, `<|im_end|>`)
-- ⚠️ **Multi-turn reasoning** - Rolling thinking approach documented
+## 🎯 Overview
 
-> 📖 See [REASONING_MODEL_ANALYSIS.md](docs/REASONING_MODEL_ANALYSIS.md) for detailed analysis of reasoning capabilities
+Baguettotron-321M is designed to help students, researchers, and ML engineers understand how modern language models work by providing:
 
-### Implementation
-- ✅ **SYNTH** dataset support (~200B tokens)
-- ✅ Comprehensive test suite with 100% coverage
-- ✅ Training pipeline (Trainer, optimizers, schedulers)
-- ✅ Generation utilities (top-k, top-p, temperature)
+- **Clean, readable code** with extensive documentation and type hints
+- **Production-ready architecture** using state-of-the-art techniques (GQA, SwiGLU, RoPE)
+- **Complete training pipeline** with multi-dataset support and intelligent checkpoint management
+- **Comprehensive test suite** with 90%+ coverage
+- **Educational resources** including architecture guides and a technical whitepaper
 
-## 📊 Architecture
+Whether you're learning about transformers for the first time or implementing your own LLM, this project provides a solid foundation with real, working code you can study, modify, and extend.
 
-```
-BaguettotronForCausalLM (320.96M params)
-├── Embeddings (65536 × 576)                    37.75M
-├── 80 × Transformer Blocks
-│   ├── RMSNorm (pre-norm, eps=1e-5)
-│   ├── GQAttention (9 heads, 3 KV, RoPE)      70.78M
-│   ├── RMSNorm (pre-norm, eps=1e-5)
-│   └── SwiGLU MLP (3 projections)             212.34M
-├── Final RMSNorm                                0.09M
-└── LM Head (tied with embeddings)                  0
-                                              ─────────
-                                        Total: 320.96M
-```
+---
 
-## 🚀 Installation
+## ✨ Key Features
+
+### 🏗️ Modern Architecture
+- **320.96M parameters** - GPT-style causal language model
+- **80 deep layers** - "Baguette" architecture optimized for reasoning tasks
+- **Grouped-Query Attention (GQA)** - 9 query heads, 3 KV heads for efficiency
+- **SwiGLU MLP** - State-of-the-art activation function (gate_proj, up_proj, down_proj)
+- **RoPE embeddings** - Rotary Position Embeddings for better position encoding
+- **RMSNorm** - Faster pre-normalization (eps=1e-5)
+- **Tied embeddings** - Shared input/output weights
+- **100% LlamaForCausalLM compatible** - Drop-in replacement for Hugging Face models
+
+### 🚀 Training Infrastructure
+- **Multi-dataset training** - Train on multiple datasets simultaneously with weighted sampling
+- **Intelligent checkpoint system** - Organized structure with automatic rotation
+- **YAML configuration** - Easy configuration management
+- **Auto-download datasets** - Wikipedia and SYNTH datasets download automatically
+- **Mixed precision training** - Automatic Mixed Precision (AMP) for faster training
+- **Gradient accumulation** - Simulate larger batch sizes
+- **Learning rate scheduling** - Cosine, linear, and constant schedules with warmup
+- **TensorBoard & W&B support** - Track training metrics in real-time
+
+### 📊 Dataset Support
+- **SYNTH dataset** (~200B tokens) - Official training corpus
+- **Wikipedia** (Simple English, French) - For development and testing
+- **Demo dataset** - Synthetic data for quick testing
+- **Custom datasets** - Easy integration with your own data
+- **Multi-dataset mixing** - Train on multiple datasets with weighted sampling
+
+### 🧪 Educational Resources
+- **Comprehensive documentation** - Architecture guide, dataset guide, quick start
+- **Technical whitepaper** - Deep dive into model design, chat templates, and implementation ([whitepaper.md](whitepaper.md))
+- **Chat mode support** - ChatML format for interactive conversations (see [whitepaper.md](whitepaper.md) §3.2)
+- **90%+ test coverage** - Learn from working examples and tests
+- **CLI and Python API** - Flexible usage for all skill levels
+- **Production-ready code** - Modern Python with type hints and best practices
+
+---
+
+## 🚀 Quick Start
+
+### Installation
 
 ```bash
 # Clone the repository
-git clone <repo-url>
-cd Baguettotron-321M
+git clone https://github.com/JacquesGariepy/AI-From-Scratch
+cd AI-From-Scratch/Baguettotron-321M
 
-# Create virtual environment
-python -m venv .venv
-source .venv/bin/activate  # Linux/Mac
-# .venv\Scripts\activate   # Windows
+# Create and activate virtual environment
+python3 -m venv ~/.venvs/baguettotron
+source ~/.venvs/baguettotron/bin/activate  # Linux/Mac
+# .venv\Scripts\activate  # Windows
 
-# Install with training dependencies (includes datasets, transformers, etc.)
-pip install -e ".[train]"
-
-# Or with all dependencies (dev + train)
-pip install -e ".[all]"
-
-# Basic install (model only, no training/data tools)
-pip install -e .
+# Install with training dependencies + Wikipedia dataset
+pip install -e ".[train,wikipedia]"
 ```
 
-**What's included:**
-- **Base install** (`pip install -e .`): Core model, inference only
-- **`[train]`**: Adds `transformers`, `datasets`, `tensorboard`, `wandb` for training
-- **`[dev]`**: Adds testing and linting tools
-- **`[all]`**: Everything (train + dev)
+This will:
+- ✅ Install all dependencies
+- ✅ Auto-download Wikipedia Simple English (200MB)
+- ✅ Set up the CLI tool
+- ✅ Make you ready to train!
 
-## 📦 Data Preparation
-
-### Real Training: SYNTH Dataset (Recommended)
-
-Baguettotron was trained on the **PleIAs/SYNTH** dataset (~200B tokens). Download it directly from HuggingFace:
-
-**Option 1: Pre-tokenized (Fastest for Training)**
-
-Pre-tokenizing saves time during training since tokenization happens once during preparation:
+### Your First Training Run (5 minutes)
 
 ```bash
-# Download and tokenize SYNTH (requires pip install -e ".[train]")
-python prepare_synth_data.py --tokenize --split train
+# 1. Prepare demo dataset for testing
+./baguettotron dataset prepare --type demo
 
-# For testing with a subset first
-python prepare_synth_data.py --tokenize --subset --max-samples 10000
+# 2. Train a tiny model
+./baguettotron train \
+  --data data/train.json \
+  --config tiny \
+  --epochs 1 \
+  --batch-size 8
+
+# 3. Generate text
+./baguettotron generate \
+  --checkpoint outputs/ckpt_*/model.pt \
+  --prompt "Hello, I am" \
+  --max-length 50
 ```
 
-This creates `data/train_tokens.json` in the format:
-```json
-[
-  [1, 2, 3, 4, 5, ...],     // Token IDs for first example
-  [10, 11, 12, 13, ...],    // Token IDs for second example
-  ...
-]
-```
-
-**Option 2: Raw Text (Tokenize During Training)**
-
-If you prefer to tokenize on-the-fly:
+### Realistic Training with Wikipedia (30 minutes)
 
 ```bash
-# Download SYNTH as JSONL
-python prepare_synth_data.py --format jsonl --split train
+# 1. Dataset is already downloaded during install!
+# Or manually: ./baguettotron dataset prepare --type wikipedia --tokenize
+
+# 2. Train with Wikipedia
+./baguettotron train \
+  --datasets wikipedia \
+  --config 321m \
+  --epochs 5 \
+  --batch-size 4 \
+  --warmup-steps 500 \
+  --save-steps 1000
+
+# 3. Generate text with trained model
+./baguettotron generate \
+  --checkpoint outputs/ckpt_*/model.pt \
+  --prompt "The capital of France is" \
+  --temperature 0.8
 ```
 
-Then use with `SYNTHDataset`:
-```python
-from transformers import AutoTokenizer
-from baguettotron.data import SYNTHDataset, create_dataloader
+For more detailed guides, see:
+- **[QUICKSTART.md](QUICKSTART.md)** - Complete step-by-step guide with 3 scenarios
+- **[docs/INSTALLATION_GUIDE.md](docs/INSTALLATION_GUIDE.md)** - Detailed installation instructions
+- **[docs/DATASET_GUIDE.md](docs/DATASET_GUIDE.md)** - Complete dataset documentation
 
-tokenizer = AutoTokenizer.from_pretrained("PleIAs/Baguettotron")
-dataset = SYNTHDataset(
-    data_path='data/train.jsonl',
-    tokenizer=tokenizer,
-    block_size=2048
-)
-dataloader = create_dataloader(dataset, batch_size=32)
+---
+
+## 🏗️ Architecture Overview
+
+### Model Structure
+
+```
+BaguettotronForCausalLM (320.96M params)
+├── Token Embeddings (65536 × 576)              37.75M params
+├── 80 × Transformer Blocks                    283.12M params
+│   ├── RMSNorm (pre-norm, eps=1e-5)
+│   ├── Grouped-Query Attention
+│   │   ├── 9 query heads (Q)
+│   │   ├── 3 key-value heads (KV)
+│   │   └── RoPE position embeddings
+│   ├── RMSNorm (pre-norm, eps=1e-5)
+│   └── SwiGLU MLP
+│       ├── gate_proj (hidden_size → intermediate_size)
+│       ├── up_proj (hidden_size → intermediate_size)
+│       └── down_proj (intermediate_size → hidden_size)
+├── Final RMSNorm                                0.09M params
+└── LM Head (tied with token embeddings)              0 params
+                                              ═══════════════
+                                        Total: 320.96M params
 ```
 
-### Your Own Data
+### Technical Specifications
 
-To preprocess your own text corpus:
+| Parameter | Value | Description |
+|-----------|-------|-------------|
+| **Architecture** | LlamaForCausalLM | HuggingFace compatible |
+| **Total Parameters** | 320.96M | Production-ready size |
+| **Vocabulary Size** | 65,536 | BPE tokenizer |
+| **Hidden Size** | 576 | Model dimension |
+| **Number of Layers** | 80 | Deep architecture |
+| **Attention Heads** | 9 query, 3 KV | Grouped-Query Attention |
+| **Head Dimension** | 64 | Per-head size |
+| **Intermediate Size** | 1,536 | MLP hidden dimension |
+| **Max Context Length** | 4,096 tokens | Sequence length |
+| **Position Encoding** | RoPE (θ=10000) | Rotary embeddings |
+| **Activation** | SwiGLU (SiLU) | MLP activation |
+| **Normalization** | RMSNorm (eps=1e-5) | Pre-normalization |
+| **Precision** | bfloat16 | Mixed precision training |
 
-```python
-from transformers import AutoTokenizer
-from baguettotron.data import preprocess_text_file
+### Why This Architecture?
 
-tokenizer = AutoTokenizer.from_pretrained("PleIAs/Baguettotron")
-preprocess_text_file(
-    input_path='your_corpus.txt',
-    output_path='data/train_tokens.json',
-    tokenizer=tokenizer,
-    block_size=2048,
-    stride=1024  # 50% overlap
-)
-```
+1. **Grouped-Query Attention (GQA)**: Reduces KV cache memory by 3x while maintaining quality
+2. **SwiGLU Activation**: Better performance than ReLU/GELU on language tasks
+3. **80 Layers**: Deep architecture provides better reasoning and compositional abilities
+4. **RoPE Embeddings**: Superior position encoding that generalizes to longer sequences
+5. **RMSNorm**: Faster and more stable than LayerNorm
+6. **Tied Embeddings**: Reduces parameters and improves efficiency
 
-### Quick Testing (Without SYNTH Download)
+For detailed architecture documentation, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-For quickly testing the training pipeline without downloading SYNTH:
+---
+
+## 📚 Training Guide
+
+### Training with Multiple Datasets
+
+Baguettotron supports training on multiple datasets simultaneously with weighted sampling:
 
 ```bash
-# Create synthetic random data for testing
-python prepare_demo_data.py --num-train 1000 --num-eval 100
+# Train on SYNTH (70%) + Wikipedia (30%)
+./baguettotron train \
+  --datasets synth,wikipedia \
+  --dataset-weights 0.7,0.3 \
+  --config 321m \
+  --epochs 10 \
+  --batch-size 32 \
+  --warmup-steps 2000 \
+  --save-steps 1000 \
+  --save-total-limit 5
 ```
 
-⚠️ **This is only for pipeline testing, not real training!**
+### Using YAML Configuration (Recommended)
 
-## 💻 Usage
+For reproducible training runs, use YAML configuration files:
 
-### Quick Start with Python API
+```bash
+./baguettotron train --config-file configs/multi_dataset.yaml
+```
+
+Example `configs/multi_dataset.yaml`:
+
+```yaml
+# Model configuration
+model:
+  config: "321m"  # or "tiny" for testing
+
+# Dataset configuration
+data:
+  datasets:
+    - name: "synth"
+      weight: 0.7
+    - name: "wikipedia"
+      weight: 0.3
+
+# Training hyperparameters
+training:
+  epochs: 10
+  batch_size: 32
+  learning_rate: 1.0e-4
+  warmup_steps: 2000
+  gradient_accumulation_steps: 1
+  max_grad_norm: 1.0
+
+# Checkpoint management
+checkpoint:
+  save_steps: 1000
+  save_total_limit: 5
+  output_dir: "outputs/production"
+```
+
+### Advanced Training Options
+
+```bash
+# Full 321M model training with all features
+./baguettotron train \
+  --config-file configs/train_example.yaml \
+  --datasets synth,wikipedia \
+  --dataset-weights 0.7,0.3 \
+  --config 321m \
+  --epochs 100 \
+  --batch-size 32 \
+  --learning-rate 1e-4 \
+  --warmup-steps 2000 \
+  --gradient-accumulation-steps 4 \
+  --save-steps 1000 \
+  --save-total-limit 5 \
+  --output-dir outputs/my_run \
+  --use-wandb \
+  --wandb-project "baguettotron"
+```
+
+### Checkpoint Management
+
+Baguettotron uses an organized checkpoint structure:
+
+```
+outputs/
+├── ckpt_1000/
+│   ├── model.pt              # Model weights
+│   ├── trainer_state.pt      # Optimizer, scheduler, step count
+│   └── config.json           # Model configuration
+├── ckpt_2000/
+│   └── ...
+└── ckpt_3000/
+    └── ...
+```
+
+**Features:**
+- Separate model and trainer state for clarity
+- Automatic checkpoint rotation with `--save-total-limit`
+- Easy resumption from any checkpoint
+- Full training state preservation
+
+### Resuming Training
+
+```bash
+# Resume from a checkpoint
+./baguettotron train \
+  --config-file configs/multi_dataset.yaml \
+  --checkpoint outputs/production/ckpt_5000
+```
+
+---
+
+## 🎨 Text Generation
+
+### Command-Line Generation
+
+```bash
+# Interactive mode
+./baguettotron generate \
+  --checkpoint outputs/ckpt_10000/model.pt \
+  --interactive
+
+# Single prompt generation
+./baguettotron generate \
+  --checkpoint outputs/ckpt_10000/model.pt \
+  --prompt "The capital of France is" \
+  --max-length 100 \
+  --temperature 0.8 \
+  --top-k 50 \
+  --top-p 0.9
+
+# Greedy decoding (deterministic)
+./baguettotron generate \
+  --checkpoint outputs/ckpt_10000/model.pt \
+  --prompt "Once upon a time" \
+  --greedy \
+  --max-length 200
+```
+
+### Python API
 
 ```python
 from baguettotron import BaguettotronForCausalLM, BaguettotronConfig
-from baguettotron.training import Trainer, create_optimizer, create_scheduler
-from baguettotron.data import TextDataset, create_dataloader
+from transformers import AutoTokenizer
+import torch
 
-# Create official 321M model
+# Load model
 config = BaguettotronConfig.baguettotron_321m()
 model = BaguettotronForCausalLM(config)
+model.load_state_dict(torch.load('outputs/ckpt_10000/model.pt'))
+model.eval()
 
-# Load data
-train_dataset = TextDataset('data/train.json', block_size=2048)
-train_dataloader = create_dataloader(train_dataset, batch_size=32, shuffle=True)
+# Load tokenizer
+tokenizer = AutoTokenizer.from_pretrained("PleIAs/Baguettotron")
 
-# Create optimizer and scheduler
-optimizer = create_optimizer(model, learning_rate=1e-4, weight_decay=0.1)
-scheduler = create_scheduler(optimizer, 'cosine', num_warmup_steps=1000, num_training_steps=10000)
+# Generate text
+prompt = "The capital of France is"
+input_ids = tokenizer.encode(prompt, return_tensors="pt")
 
-# Train
-trainer = Trainer(
-    model=model,
-    train_dataloader=train_dataloader,
-    optimizer=optimizer,
-    scheduler=scheduler,
-    device='cuda',
-    max_epochs=10,
-    output_dir='outputs'
-)
-trainer.train()
-
-# Generate
-import torch
-input_ids = torch.tensor([[1, 2, 3]])  # Your tokenized prompt
 output = model.generate(
     input_ids,
     max_new_tokens=100,
@@ -214,236 +363,574 @@ output = model.generate(
     top_p=0.9,
     do_sample=True
 )
+
+generated_text = tokenizer.decode(output[0], skip_special_tokens=True)
+print(generated_text)
 ```
 
-### Training from Command Line
+---
 
-**Quick test (tiny model):**
+## 💬 Chat Mode & Conversation
+
+Baguettotron-321M supports **ChatML format** for interactive conversations, as described in the [whitepaper](whitepaper.md#32-conversation-template-chat_templatejson). The chat template uses special tokens (`<|im_start|>`, `<|im_end|>`, `<think>`) to structure multi-turn conversations with proper role separation.
+
+### Quick Start with Chat Mode
+
 ```bash
-python train.py \
-  --model-config tiny \
-  --train-data data/train.json \
-  --epochs 1 \
-  --batch-size 8 \
-  --device cuda
+# Interactive conversation mode
+./baguettotron generate \
+  --checkpoint outputs/ckpt_10000/model.pt \
+  --chat-mode \
+  --interactive \
+  --system-prompt "Tu es un assistant IA expert."
+
+# Single chat message
+./baguettotron generate \
+  --checkpoint outputs/ckpt_10000/model.pt \
+  --chat-mode \
+  --prompt "Explique-moi les transformers" \
+  --max-length 200
 ```
 
-**Full training (321M model with RTX 3090, 24GB):**
-```bash
-python train.py \
-  --config configs/train_synth_3090.yaml
+### Chat Template Features
+
+- **ChatML Format**: Industry-standard conversation formatting compatible with OpenAI and other models
+- **Role Support**: System, user, and assistant roles for clear context
+- **Reasoning Tag**: `<think>` token encourages the model to reason before responding
+- **Multi-turn Conversations**: Maintains conversation history for context-aware responses
+- **Automatic Fallback**: Works even without the template file (simple format)
+
+### Python API for Chat
+
+```python
+from baguettotron.tokenization import load_tokenizer
+
+# Load tokenizer with chat template
+tokenizer = load_tokenizer("auto", model_vocab_size=65536)
+
+# Format a conversation
+messages = [
+    {"role": "system", "content": "Tu es un assistant IA."},
+    {"role": "user", "content": "Bonjour !"}
+]
+
+# Apply chat template
+input_ids = tokenizer.apply_chat_template(
+    messages,
+    add_generation_prompt=True,
+    tokenize=True,
+    return_tensors="pt"
+)
+
+# Generate response
+output = model.generate(input_ids, max_new_tokens=100)
+response = tokenizer.decode(output[0], skip_special_tokens=True)
 ```
 
-**Custom training:**
-```bash
-python train.py \
-  --model-config 321m \
-  --train-data data/train_tokens.json \
-  --eval-data data/eval_tokens.json \
-  --epochs 10 \
-  --batch-size 32 \
-  --gradient-accumulation-steps 4 \
-  --learning-rate 1e-4 \
-  --weight-decay 0.1 \
-  --scheduler cosine \
-  --warmup-steps 1000 \
-  --mixed-precision \
-  --output-dir outputs/my_run
-```
+**For detailed chat mode documentation**, see:
+- **Quick Start**: [docs/CHAT_MODE_QUICKSTART.md](docs/CHAT_MODE_QUICKSTART.md)
+- **Complete Guide**: [docs/CHAT_TEMPLATE_GUIDE.md](docs/CHAT_TEMPLATE_GUIDE.md)
+- **Technical Details**: See [whitepaper.md](whitepaper.md) Section 3.2 and Appendix D.3
 
-**Resume from checkpoint:**
-```bash
-python train.py \
-  --config configs/train_synth_3090.yaml \
-  --checkpoint outputs/checkpoint_10000.pt
-```
-
-### Generation from Command Line
-
-**Interactive mode:**
-```bash
-python generate.py \
-  --checkpoint outputs/model.pt \
-  --config 321m \
-  --interactive
-```
-
-**Single prompt:**
-```bash
-python generate.py \
-  --checkpoint outputs/model.pt \
-  --config 321m \
-  --prompt "What is the capital of France?" \
-  --max-new-tokens 100 \
-  --temperature 0.8 \
-  --top-k 50 \
-  --top-p 0.9
-```
-
-**Greedy decoding:**
-```bash
-python generate.py \
-  --checkpoint outputs/model.pt \
-  --config 321m \
-  --prompt "The answer is" \
-  --greedy \
-  --max-new-tokens 50
-```
-
-## ✅ Testing & Validation
-
-**Validate structure (without PyTorch):**
-```bash
-python validate_structure.py
-```
-
-**Run all tests:**
-```bash
-pytest tests/ -v
-```
-
-**Run specific test modules:**
-```bash
-pytest tests/test_config.py -v      # Configuration tests
-pytest tests/test_model.py -v       # Model architecture tests
-pytest tests/test_mgqa.py -v        # Masked GQA tests
-pytest tests/test_data.py -v        # Dataset & collator tests
-pytest tests/test_training.py -v    # Trainer & optimizer tests
-pytest tests/test_generation.py -v  # Generation utilities tests
-```
-
-**Check test coverage:**
-```bash
-pytest tests/ --cov=src/baguettotron --cov-report=html
-```
+---
 
 ## 📁 Project Structure
 
 ```
 Baguettotron-321M/
-├── src/baguettotron/                    # Main installable package
-│   ├── __init__.py                      # Main exports
-│   ├── config.py                        # BaguettotronConfig (dataclass)
-│   ├── model/                           # Model components
-│   │   ├── __init__.py
-│   │   ├── causal_lm.py                # BaguettotronForCausalLM
-│   │   ├── transformer.py              # TransformerBlock, TransformerDecoder
-│   │   ├── attention.py                # GQA + MaskedGroupQueryAttention
-│   │   ├── feedforward.py              # SwiGLU MLP
-│   │   ├── normalization.py            # RMSNorm
-│   │   └── rope.py                     # RotaryEmbedding
-│   ├── data/                           # Data management
-│   │   ├── dataset.py                  # TextDataset, SYNTHDataset
-│   │   └── collator.py                 # Data collators
-│   ├── training/                       # Training utilities
-│   │   ├── trainer.py                  # Trainer class
-│   │   ├── optimizer.py                # Optimizers with layer decay
-│   │   └── scheduler.py                # LR schedulers (cosine, linear, etc.)
-│   └── generation/                     # Generation utilities
-│       └── utils.py                    # Sampling (top-k, top-p, typical)
-├── train.py                            # Training CLI script
-├── generate.py                         # Generation CLI script
-├── validate_structure.py               # Structure validation
-├── tests/                              # Test suite
-│   ├── conftest.py                     # Pytest fixtures
-│   ├── test_config.py                  # Configuration tests
-│   ├── test_model.py                   # Complete model tests
-│   ├── test_mgqa.py                    # MGQA tests
-│   ├── test_data.py                    # Data module tests
-│   ├── test_training.py                # Training module tests
-│   └── test_generation.py              # Generation utilities tests
-├── configs/                            # YAML configurations
-│   ├── model_official_baguettotron_321m.yaml
-│   └── train_synth_3090.yaml
-├── setup.py                            # Package installation
-├── pyproject.toml                      # Modern Python configuration
-├── README.md                           # This file
-└── whitepaper.md                       # Technical whitepaper
+├── baguettotron              # Main CLI entry point (executable)
+├── Makefile                  # Build automation
+├── setup.py                  # Package setup with intelligent dataset management
+├── pyproject.toml            # Modern Python packaging
+├── requirements.txt          # Core dependencies
+│
+├── src/baguettotron/         # Source code (installable package)
+│   ├── __init__.py           # Package exports
+│   ├── config.py             # BaguettotronConfig (dataclass)
+│   ├── model/                # Model architecture
+│   │   ├── causal_lm.py      # BaguettotronForCausalLM (main model)
+│   │   ├── transformer.py    # TransformerBlock, TransformerDecoder
+│   │   ├── attention.py      # Grouped-Query Attention + RoPE
+│   │   ├── feedforward.py    # SwiGLU MLP
+│   │   ├── normalization.py  # RMSNorm
+│   │   └── rope.py           # Rotary Position Embeddings
+│   ├── data/                 # Data management
+│   │   ├── dataset.py        # TextDataset, SYNTHDataset, multi-dataset support
+│   │   ├── collator.py       # Data collators
+│   │   └── auto_download.py  # Automatic dataset downloading
+│   ├── training/             # Training infrastructure
+│   │   ├── trainer.py        # Trainer class with AMP, checkpointing
+│   │   ├── optimizer.py      # Optimizers with layer decay
+│   │   └── scheduler.py      # Learning rate schedulers
+│   └── generation/           # Generation utilities
+│       └── utils.py          # Sampling strategies (top-k, top-p, typical)
+│
+├── scripts/                  # Executable scripts
+│   ├── setup_dataset.py      # Interactive dataset setup
+│   ├── validate_dataset.py   # Dataset validation
+│   ├── train.py              # Training script
+│   └── generate.py           # Generation script
+│
+├── tests/                    # Comprehensive test suite (90%+ coverage)
+│   ├── conftest.py           # Pytest fixtures
+│   ├── test_config.py        # Configuration tests
+│   ├── test_attention.py     # Attention mechanism tests
+│   ├── test_feedforward.py   # MLP tests
+│   ├── test_dataset.py       # Data loading tests
+│   ├── test_training.py      # Training loop tests
+│   └── test_generation.py    # Generation utilities tests
+│
+├── configs/                  # YAML configuration files
+│   ├── train_example.yaml    # Complete training example
+│   ├── quick_train.yaml      # Quick testing
+│   ├── multi_dataset.yaml    # Multi-dataset training
+│   └── rtx3090_safe.yaml     # RTX 3090 optimized config
+│
+├── docs/                     # Documentation
+│   ├── ARCHITECTURE.md       # Architecture deep dive
+│   ├── DATASET_GUIDE.md      # Complete dataset guide
+│   ├── INSTALLATION_GUIDE.md # Installation instructions
+│   ├── CLI_GUIDE.md          # CLI usage guide
+│   └── INDEX.md              # Documentation index
+│
+├── data/                     # Data directory (auto-created, gitignored)
+├── outputs/                  # Training outputs (gitignored)
+└── whitepaper.md             # Technical whitepaper
 ```
 
-## 🔍 Technical Details
+### Clean, Modern Organization
 
-### Official Configuration
-
-Exact correspondence with [config.json](https://huggingface.co/PleIAs/Baguettotron/blob/main/config.json):
-
-| HuggingFace Parameter | Our Code | Value |
-|----------------------|----------|-------|
-| `vocab_size` | `vocab_size` | 65536 |
-| `hidden_size` | `hidden_size` | 576 |
-| `num_hidden_layers` | `num_hidden_layers` | 80 |
-| `num_attention_heads` | `num_attention_heads` | 9 |
-| `num_key_value_heads` | `num_key_value_heads` | 3 |
-| `intermediate_size` | `intermediate_size` | 1536 |
-| `max_position_embeddings` | `max_position_embeddings` | 4096 |
-| `rope_theta` | `rope_theta` | 10000 |
-| `rms_norm_eps` | `rms_norm_eps` | 1e-05 |
-| `tie_word_embeddings` | `tie_word_embeddings` | true |
-
-### SwiGLU MLP
-
-Formula: `down_proj(SiLU(gate_proj(x)) * up_proj(x))`
-
-Identical to `LlamaMLP` from Hugging Face Transformers.
-
-### SYNTH Dataset
-
-- **Source**: [PleIAs/SYNTH](https://huggingface.co/datasets/PleIAs/SYNTH)
-- **Size**: ~200B tokens (~75B words)
-- **Languages**: en, fr, de, it, es, pl, nl, la, etc.
-- **Format**: Qwen-style chat with `<|im_start|>` / `<|im_end|>`
-- **Special tags**:
-  - `<think>...</think>` : Reasoning traces
-  - `<source_N>...</source_N>` : RAG sources
-
-Example generated format:
-```
-<|im_start|>user
-What is the capital of France?
-<|im_end|>
-<|im_start|>assistant
-<think>I need to recall European geography</think>
-<source_1>https://wikipedia.org/France</source_1>
-The capital of France is Paris.
-```
-
-## 📚 Documentation
-
-- **[DISCLAIMER.md](DISCLAIMER.md)** - ⚠️ Important legal and ethical disclaimer (READ FIRST)
-- [AUTHORS.md](AUTHORS.md) - Author information and project nature
-- **[REASONING_MODEL_ANALYSIS.md](docs/REASONING_MODEL_ANALYSIS.md)** - Analysis of reasoning capabilities
-- [whitepaper.md](whitepaper.md) - Technical whitepaper
-- [LICENSE](LICENSE) - Apache 2.0 license
-- [docs/](docs/) - Additional documentation and reports
-
-## 🔗 References
-
-- **This Repository**: https://github.com/JacquesGariepy/AI-From-Scratch/tree/main/Baguettotron-321M
-- **Official Model (PleIAs)**: https://huggingface.co/PleIAs/Baguettotron
-- **SYNTH Dataset**: https://huggingface.co/datasets/PleIAs/SYNTH
-- **Architecture**: LlamaForCausalLM compatible
-- **Technical Whitepaper**: See whitepaper.md
-
-## 📝 License
-
-Apache 2.0
-
-## 🙏 Credits & Attribution
-
-**Author**: Jacques Gariépy ([GitHub](https://github.com/JacquesGariepy))
-- Independent reverse engineering of model architecture
-- Code written entirely from scratch for educational purposes
-- **NOT AFFILIATED with PleIAs or the Baguettotron team in any way**
-- **ZERO collaboration, assistance, or communication from the original creators**
-
-**Analyzed Model**: PleIAs/Baguettotron (for reference only)
-- [Official Model on HuggingFace](https://huggingface.co/PleIAs/Baguettotron) - Original weights and model
-- [SYNTH Dataset](https://huggingface.co/datasets/PleIAs/SYNTH) - Training corpus (~200B tokens)
-- Architecture reverse-engineered from publicly available config.json and model structure
-- **No proprietary code, documentation, or insider information was accessed**
-
-**Architecture Inspiration**: Meta's LlamaForCausalLM
+- **Unified CLI**: Single entry point (`baguettotron`) for all operations
+- **Modular source code**: Clean separation of concerns
+- **Comprehensive tests**: 90%+ coverage with fixtures and utilities
+- **Rich documentation**: Guides for every aspect of the project
+- **YAML configs**: Reproducible training configurations
 
 ---
 
-**⚠️ Critical**: This is an **independent reverse engineering project with NO AFFILIATION to PleIAs**. The Baguettotron/PleIAs team has not shared, provided, assisted, endorsed, or communicated with this project in any way. This implementation is based solely on publicly available information (model architecture, config.json) on HuggingFace. For official support and production use, please use the [official PleIAs/Baguettotron model](https://huggingface.co/PleIAs/Baguettotron).
+## ⚙️ Configuration
+
+### Available Model Configurations
+
+```python
+from baguettotron import BaguettotronConfig
+
+# Official 321M model
+config = BaguettotronConfig.baguettotron_321m()
+
+# Tiny model for testing (fits on CPU)
+config = BaguettotronConfig.tiny()
+
+# Custom configuration
+config = BaguettotronConfig(
+    vocab_size=32000,
+    hidden_size=768,
+    num_hidden_layers=12,
+    num_attention_heads=12,
+    num_key_value_heads=4,
+    intermediate_size=2048,
+    max_position_embeddings=2048
+)
+```
+
+### Dataset Installation Options
+
+```bash
+# Training + Wikipedia (recommended for development)
+pip install -e ".[train,wikipedia]"
+
+# Training + SYNTH (official dataset)
+pip install -e ".[train,synth]"
+
+# Multiple datasets
+pip install -e ".[train,synth,wikipedia]"
+
+# Demo dataset (quick testing)
+pip install -e ".[train,demo]"
+
+# Full installation with all features
+pip install -e ".[all,synth,wikipedia]"
+```
+
+### Available Datasets
+
+| Dataset | Size | Installation | Use Case |
+|---------|------|--------------|----------|
+| **Demo** | 5MB | `[demo]` | Quick testing, CI/CD |
+| **Wikipedia Simple** | 200MB | `[wikipedia]` | **Recommended for development** |
+| **Wikipedia French** | 6GB | Configure `--lang fr` | Production (medium) |
+| **SYNTH** | 100MB subset | `[synth]` | **Official training corpus** |
+| **SYNTH Full** | 500GB+ | Manual download | Full production training |
+
+---
+
+## 📖 Educational Resources
+
+### Documentation
+
+- **[QUICKSTART.md](QUICKSTART.md)** - Get started in 5 minutes with 3 ready-to-use scenarios
+- **[docs/INSTALLATION_GUIDE.md](docs/INSTALLATION_GUIDE.md)** - Detailed installation instructions
+- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Deep dive into model architecture
+- **[docs/DATASET_GUIDE.md](docs/DATASET_GUIDE.md)** - Complete dataset documentation
+- **[docs/CLI_GUIDE.md](docs/CLI_GUIDE.md)** - CLI usage and examples
+- **[docs/CHAT_MODE_QUICKSTART.md](docs/CHAT_MODE_QUICKSTART.md)** - Quick start guide for chat mode ⭐
+- **[docs/CHAT_TEMPLATE_GUIDE.md](docs/CHAT_TEMPLATE_GUIDE.md)** - Complete chat template documentation
+- **[docs/INDEX.md](docs/INDEX.md)** - Documentation index
+- **[whitepaper.md](whitepaper.md)** - Technical whitepaper (includes chat template specifications §3.2, Appendix D.3)
+
+### Learning Resources
+
+1. **Start Here**: [QUICKSTART.md](QUICKSTART.md) - Three scenarios from beginner to advanced
+2. **Understand the Architecture**: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - How it works
+3. **Work with Data**: [docs/DATASET_GUIDE.md](docs/DATASET_GUIDE.md) - Prepare and use datasets
+4. **Try Chat Mode**: [docs/CHAT_MODE_QUICKSTART.md](docs/CHAT_MODE_QUICKSTART.md) - Interactive conversations
+5. **Read the Code**: Start with `src/baguettotron/model/causal_lm.py` - Clean, documented implementation
+6. **Study the Tests**: `tests/` directory - Learn from working examples
+7. **Deep Dive**: [whitepaper.md](whitepaper.md) - Technical details, chat template design, and implementation decisions
+
+### Code Examples
+
+#### Training with Python API
+
+```python
+from baguettotron import BaguettotronForCausalLM, BaguettotronConfig
+from baguettotron.training import Trainer, create_optimizer, create_scheduler
+from baguettotron.data import TextDataset, create_dataloader
+import torch
+
+# 1. Create model
+config = BaguettotronConfig.baguettotron_321m()
+model = BaguettotronForCausalLM(config)
+
+# 2. Load data
+train_dataset = TextDataset('data/train.json', block_size=2048)
+train_dataloader = create_dataloader(
+    train_dataset,
+    batch_size=32,
+    shuffle=True
+)
+
+# 3. Create optimizer and scheduler
+optimizer = create_optimizer(
+    model,
+    learning_rate=1e-4,
+    weight_decay=0.1
+)
+scheduler = create_scheduler(
+    optimizer,
+    'cosine',
+    num_warmup_steps=1000,
+    num_training_steps=10000
+)
+
+# 4. Train
+trainer = Trainer(
+    model=model,
+    train_dataloader=train_dataloader,
+    optimizer=optimizer,
+    scheduler=scheduler,
+    device='cuda',
+    max_epochs=10,
+    output_dir='outputs',
+    save_steps=1000
+)
+
+trainer.train()
+```
+
+#### Multi-Dataset Training
+
+```python
+from baguettotron.data import MultiDatasetLoader, TextDataset
+
+# Create multiple datasets
+synth_dataset = TextDataset('data/synth_train.json', block_size=2048)
+wiki_dataset = TextDataset('data/wikipedia_tokens.json', block_size=2048)
+
+# Combine with weights
+multi_loader = MultiDatasetLoader(
+    datasets=[synth_dataset, wiki_dataset],
+    weights=[0.7, 0.3],
+    batch_size=32
+)
+
+# Use in training
+for batch in multi_loader:
+    # Your training loop
+    pass
+```
+
+---
+
+## ✅ Testing
+
+Baguettotron includes a comprehensive test suite with 90%+ coverage.
+
+### Run All Tests
+
+```bash
+# Run all tests with coverage
+pytest tests/ -v --cov=src/baguettotron --cov-report=html
+
+# Run specific test modules
+pytest tests/test_config.py -v          # Configuration tests
+pytest tests/test_attention.py -v       # Attention mechanism
+pytest tests/test_feedforward.py -v     # MLP layers
+pytest tests/test_dataset.py -v         # Data loading
+pytest tests/test_training.py -v        # Training loop
+pytest tests/test_generation.py -v      # Text generation
+
+# View coverage report
+open htmlcov/index.html  # Linux/Mac
+start htmlcov/index.html  # Windows
+```
+
+### Using Makefile
+
+```bash
+make test              # Run all tests
+make test-coverage     # Run tests with coverage report
+make test-fast         # Run fast tests only
+```
+
+### What's Tested
+
+- ✅ **Configuration**: All config variations and edge cases
+- ✅ **Model Architecture**: Attention, MLP, embeddings, full model
+- ✅ **Data Loading**: All dataset types, collators, multi-dataset
+- ✅ **Training**: Optimizer, scheduler, trainer, checkpointing
+- ✅ **Generation**: Sampling strategies, beam search, batching
+- ✅ **Integration**: End-to-end training and generation workflows
+
+---
+
+## 🤝 Contributing
+
+We welcome contributions! Whether you're fixing bugs, adding features, improving documentation, or sharing educational resources.
+
+### How to Contribute
+
+1. **Fork the repository**
+2. **Create a feature branch**: `git checkout -b feature/amazing-feature`
+3. **Make your changes**: Add code, tests, and documentation
+4. **Run tests**: `make test` - Ensure all tests pass
+5. **Format code**: `make format` - Follow code style
+6. **Commit changes**: `git commit -m "Add amazing feature"`
+7. **Push to branch**: `git push origin feature/amazing-feature`
+8. **Open a Pull Request**: Describe your changes
+
+### Development Setup
+
+```bash
+# Clone and install with dev dependencies
+git clone https://github.com/JacquesGariepy/AI-From-Scratch
+cd AI-From-Scratch/Baguettotron-321M
+pip install -e ".[all,wikipedia]"
+
+# Run tests
+make test
+
+# Format code
+make format
+
+# Type checking
+make typecheck
+```
+
+### Code Style
+
+- **Type hints**: Use type hints for all functions
+- **Docstrings**: Document all public APIs
+- **Tests**: Add tests for new features
+- **Format**: Follow PEP 8 (enforced by `black` and `isort`)
+- **Comments**: Explain complex logic
+
+---
+
+## 📄 Citation
+
+If you use Baguettotron-321M in your research or educational projects, please cite:
+
+```bibtex
+@software{baguettotron321m,
+  author = {Gariépy, Jacques},
+  title = {Baguettotron-321M: Educational Implementation of a 321M Parameter Language Model},
+  year = {2024},
+  url = {https://github.com/JacquesGariepy/AI-From-Scratch/tree/main/Baguettotron-321M},
+  note = {Independent reverse engineering project for educational purposes}
+}
+```
+
+**Note**: This is an independent educational project. For the official Baguettotron model, please cite:
+
+```bibtex
+@software{pleias_baguettotron,
+  author = {PleIAs},
+  title = {Baguettotron: Small Reasoning Model},
+  year = {2024},
+  url = {https://huggingface.co/PleIAs/Baguettotron}
+}
+```
+
+---
+
+## 📝 License
+
+This project is licensed under the **Apache License 2.0** - see the [LICENSE](LICENSE) file for details.
+
+### What This Means
+
+- ✅ **Use freely**: For personal, educational, or commercial projects
+- ✅ **Modify**: Adapt the code to your needs
+- ✅ **Distribute**: Share your modifications
+- ✅ **Private use**: Use privately without disclosure
+- ⚠️ **Notice required**: Include the original copyright notice
+- ⚠️ **State changes**: Document modifications you make
+
+---
+
+## 🙏 Acknowledgments
+
+### Author
+
+**Jacques Gariépy** ([GitHub](https://github.com/JacquesGariepy))
+- Independent reverse engineering of model architecture
+- Code written entirely from scratch for educational purposes
+- **NOT AFFILIATED** with PleIAs or the Baguettotron team in any way
+- **ZERO collaboration, assistance, or communication** from the original creators
+
+### Analyzed Model
+
+**PleIAs/Baguettotron** (for reference only)
+- [Official Model on HuggingFace](https://huggingface.co/PleIAs/Baguettotron) - Original weights and implementation
+- [SYNTH Dataset](https://huggingface.co/datasets/PleIAs/SYNTH) - Training corpus (~200B tokens)
+- Architecture reverse-engineered from publicly available `config.json` and model structure
+- **No proprietary code, documentation, or insider information was accessed**
+
+### Architectural Inspiration
+
+- **Meta's LLaMA** - Foundation for modern transformer architectures
+- **Hugging Face Transformers** - Reference implementations and tooling
+- **PyTorch** - Deep learning framework
+
+### Educational Impact
+
+This project aims to make transformer architectures accessible to everyone by providing:
+- Clear, readable code that students can understand
+- Comprehensive documentation for self-paced learning
+- Working examples that demonstrate best practices
+- A foundation for further research and experimentation
+
+---
+
+## 🔗 References
+
+### Official Resources
+
+- **Official Model**: [PleIAs/Baguettotron](https://huggingface.co/PleIAs/Baguettotron) on Hugging Face
+- **SYNTH Dataset**: [PleIAs/SYNTH](https://huggingface.co/datasets/PleIAs/SYNTH) - ~200B tokens
+- **Wikipedia Datasets**: [Hugging Face Datasets](https://huggingface.co/datasets/wikipedia)
+
+### This Project
+
+- **Repository**: [AI-From-Scratch/Baguettotron-321M](https://github.com/JacquesGariepy/AI-From-Scratch/tree/main/Baguettotron-321M)
+- **Documentation**: [docs/](docs/) directory
+- **Whitepaper**: [whitepaper.md](whitepaper.md)
+- **Issues**: [GitHub Issues](https://github.com/JacquesGariepy/AI-From-Scratch/issues)
+
+### Learning Resources
+
+- [Attention Is All You Need](https://arxiv.org/abs/1706.03762) - Original Transformer paper
+- [LLaMA: Open and Efficient Foundation Language Models](https://arxiv.org/abs/2302.13971)
+- [GQA: Training Generalized Multi-Query Transformer Models](https://arxiv.org/abs/2305.13245)
+- [RoFormer: Enhanced Transformer with Rotary Position Embedding](https://arxiv.org/abs/2104.09864)
+- [GLU Variants Improve Transformer](https://arxiv.org/abs/2002.05202)
+
+---
+
+## ⚠️ Important Disclaimer
+
+**This is an independent educational project:**
+
+- ✋ **NOT AFFILIATED** with PleIAs or the Baguettotron team in any way
+- ✋ **ZERO collaboration or communication** with the original creators
+- ✋ **No proprietary information** was accessed or used
+- ✋ Based **solely on publicly available** architecture information (`config.json`)
+- ✅ Created **entirely from scratch** by Jacques Gariépy for educational purposes
+- ✅ All implementation decisions made **independently** through reverse engineering
+
+**For official support and production use**, please visit:
+- [Official PleIAs/Baguettotron Model](https://huggingface.co/PleIAs/Baguettotron)
+
+See [DISCLAIMER.md](DISCLAIMER.md) for full legal details.
+
+---
+
+## 💬 Support
+
+### Questions and Discussions
+
+- **Documentation**: Check [docs/INDEX.md](docs/INDEX.md) for all guides
+- **Quick Start**: See [QUICKSTART.md](QUICKSTART.md) for step-by-step instructions
+- **Issues**: Report bugs on [GitHub Issues](https://github.com/JacquesGariepy/AI-From-Scratch/issues)
+- **Educational Questions**: Open a discussion on GitHub
+
+### Common Issues
+
+**"CUDA out of memory"**
+```bash
+# Reduce batch size
+./baguettotron train --batch-size 1 --config tiny
+
+# Or use CPU
+./baguettotron train --device cpu --config tiny
+```
+
+**"Dataset not found"**
+```bash
+# List available datasets
+./baguettotron dataset list
+
+# Prepare missing dataset
+./baguettotron dataset prepare --type wikipedia --tokenize
+```
+
+**"Checkpoint directory already exists"**
+```bash
+# Use a new output directory
+./baguettotron train --output-dir outputs/run-$(date +%Y%m%d-%H%M%S)
+```
+
+---
+
+## 🎯 Roadmap
+
+### Current Version (v1.0)
+- ✅ Complete 321M parameter implementation
+- ✅ Multi-dataset training support
+- ✅ Intelligent checkpoint management
+- ✅ YAML configuration system
+- ✅ Comprehensive test suite (90%+ coverage)
+- ✅ Full documentation
+
+### Planned Features (v1.1+)
+- [ ] Multi-GPU training (Distributed Data Parallel)
+- [ ] Flash Attention 2 integration
+- [ ] 4-bit and 8-bit quantization
+- [ ] LoRA fine-tuning support
+- [ ] Model parallelism for larger models
+- [ ] Streaming dataset support
+- [ ] Web UI for generation
+- [ ] Pre-trained checkpoints
+- [ ] More example notebooks
+
+### Long-term Vision
+- Educational video series
+- Interactive tutorials
+- Community model zoo
+- Integration with popular frameworks
+- Performance optimizations
+
+---
+
+**Built with ❤️ for the AI community. Happy learning!**

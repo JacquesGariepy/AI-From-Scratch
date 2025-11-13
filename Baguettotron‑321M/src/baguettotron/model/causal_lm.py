@@ -96,12 +96,13 @@ class BaguettotronForCausalLM(nn.Module):
             module: PyTorch module to initialize
         """
         if isinstance(module, nn.Linear):
-            # Use normal initialization with std = 1/sqrt(hidden_size)
-            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+            # ✅ FIX #3: Use config.initializer_range instead of hardcoded 0.02
+            torch.nn.init.normal_(module.weight, mean=0.0, std=self.config.initializer_range)
             if module.bias is not None:
                 torch.nn.init.zeros_(module.bias)
         elif isinstance(module, nn.Embedding):
-            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+            # ✅ FIX #3: Use config.initializer_range instead of hardcoded 0.02
+            torch.nn.init.normal_(module.weight, mean=0.0, std=self.config.initializer_range)
 
     def forward(
         self,

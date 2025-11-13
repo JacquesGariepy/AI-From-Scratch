@@ -1,0 +1,94 @@
+# Baguettotron Training Configuration
+# Example configuration file with all available options
+
+seed: 1234
+device: cuda
+
+# Model configuration
+model:
+  config: "321m"              # tiny, 321m, or custom
+  vocab_size: 65536
+  hidden_size: 1024
+  num_hidden_layers: 80
+  num_attention_heads: 32
+  num_key_value_heads: 8
+  intermediate_size: 4096
+  max_position_embeddings: 2048
+  rope_theta: 10000.0
+  rms_norm_eps: 1.0e-6
+  attention_dropout: 0.0
+  hidden_activation: "silu"
+  tie_word_embeddings: false
+
+# Training configuration
+train:
+  epochs: 100
+  batch_size: 32
+  accum_steps: 4
+
+  # Learning rate
+  lr: 3.0e-4
+  betas: [0.9, 0.95]
+  eps: 1.0e-8
+  weight_decay: 0.1
+  warmup_steps: 2000
+  max_steps: null             # null = use epochs instead
+  grad_clip: 1.0
+
+  # Scheduler
+  scheduler: "cosine"         # cosine, linear, constant
+
+  # Optimizations
+  amp: true                   # Automatic Mixed Precision
+  amp_dtype: "bf16"           # bfloat16 or fp16
+  grad_checkpointing: false   # Enable for large models
+  torch_compile: false        # PyTorch 2.0+ compilation
+
+  # Checkpointing
+  save_steps: 1000            # Save every N steps
+  save_total_limit: 5         # Keep only N latest checkpoints
+  keep_last_checkpoints: 5    # Alias for save_total_limit
+  eval_every: 1000            # Evaluate every N steps
+  log_every: 10               # Log every N steps
+
+  # Output
+  output_dir: "outputs"
+  resume_from_checkpoint: null
+
+# Data configuration
+data:
+  # Single dataset mode
+  train_data: null            # Path to single training file
+
+  # Multi-dataset mode
+  datasets: "auto"            # "auto" or comma-separated: "synth,wikipedia"
+  dataset_weights: null       # null = equal, or "0.7,0.3"
+
+  # Dataset preparation
+  dataset_type: "wikipedia"   # wikipedia, synth, demo
+  dataset_lang: "simple"      # simple, fr, en (for Wikipedia)
+  max_samples: null           # Limit dataset size
+  tokenize: true              # Pre-tokenize data
+
+  # DataLoader
+  num_workers: 4
+  max_train_samples: null
+  max_val_samples: 1000
+
+# Tokenizer configuration
+tokenizer:
+  name: "gpt2"
+  vocab_size: 65536
+
+# Logging configuration
+log:
+  wandb: false                # Enable Weights & Biases
+  project: "baguettotron"
+  run_name: null              # Auto-generated if null
+  tensorboard: false          # TensorBoard logging
+  debug_checkpoints: false    # Verbose checkpoint logs
+
+# Notes:
+# - Use --config-file config/train_example.yaml to load this config
+# - CLI arguments override config file values
+# - Effective batch size = batch_size × accum_steps

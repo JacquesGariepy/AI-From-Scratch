@@ -175,15 +175,24 @@ class TestSchedulers:
         # Test warmup phase
         initial_lr = optimizer.param_groups[0]['lr']
         for _ in range(5):
+            optimizer.step()  # Call optimizer.step() before scheduler.step()
             scheduler.step()
         warmup_lr = optimizer.param_groups[0]['lr']
         assert warmup_lr > initial_lr  # LR should increase
 
+        # Complete warmup to reach peak LR
+        for _ in range(5):
+            optimizer.step()  # Call optimizer.step() before scheduler.step()
+            scheduler.step()
+        peak_lr = optimizer.param_groups[0]['lr']
+        assert peak_lr > warmup_lr  # Should reach peak
+
         # Test decay phase
         for _ in range(50):
+            optimizer.step()  # Call optimizer.step() before scheduler.step()
             scheduler.step()
         decay_lr = optimizer.param_groups[0]['lr']
-        assert decay_lr < warmup_lr  # LR should decrease
+        assert decay_lr < peak_lr  # LR should decrease from peak
 
     def test_cosine_schedule_with_warmup(self, tiny_model):
         """Test cosine annealing with warmup."""
@@ -199,6 +208,7 @@ class TestSchedulers:
         lrs = []
         for _ in range(100):
             lrs.append(optimizer.param_groups[0]['lr'])
+            optimizer.step()  # Call optimizer.step() before scheduler.step()
             scheduler.step()
 
         # LR should increase then decrease (cosine pattern)
@@ -215,10 +225,12 @@ class TestSchedulers:
 
         # After warmup, LR should stay constant
         for _ in range(15):
+            optimizer.step()  # Call optimizer.step() before scheduler.step()
             scheduler.step()
         lr_after_warmup = optimizer.param_groups[0]['lr']
 
         for _ in range(20):
+            optimizer.step()  # Call optimizer.step() before scheduler.step()
             scheduler.step()
 
         assert optimizer.param_groups[0]['lr'] == pytest.approx(lr_after_warmup)
@@ -236,6 +248,7 @@ class TestSchedulers:
 
         # LR should decrease polynomially after warmup
         for _ in range(50):
+            optimizer.step()  # Call optimizer.step() before scheduler.step()
             scheduler.step()
 
         assert optimizer.param_groups[0]['lr'] < 1e-3
@@ -249,6 +262,7 @@ class TestSchedulers:
         )
 
         for _ in range(50):
+            optimizer.step()  # Call optimizer.step() before scheduler.step()
             scheduler.step()
 
         # LR should decay
