@@ -4,14 +4,105 @@ Rotary Position Embeddings (RoPE) for Baguettotron.
 This module implements RoPE, a method for encoding positional information
 in transformer models through rotation matrices applied to query and key vectors.
 
-Reference:
-    Su et al. (2021): RoFormer: Enhanced Transformer with Rotary Position Embedding
-    https://arxiv.org/abs/2104.09864
+Supports multiple scaling methods for context extension:
+- Linear: Simple linear scaling of positions
+- Dynamic: Dynamic NTK-aware scaling (LLaMA-2 style)
+- NTK: NTK-aware interpolation
+- Yarn: Yarn attention scaling
+
+References:
+    - Su et al. (2021): RoFormer: Enhanced Transformer with Rotary Position Embedding
+      https://arxiv.org/abs/2104.09864
+    - LLaMA-2: Dynamic NTK-aware scaling
+      https://arxiv.org/abs/2307.09288
+    - Yarn: Efficient Context Window Extension
+      https://arxiv.org/abs/2309.00071
 """
 
+import math
 import torch
 import torch.nn as nn
-from typing import Tuple
+from typing import Tuple, Optional, Dict, Any
+
+
+def apply_rope_scaling(
+    inv_freq: torch.Tensor,
+    rope_scaling: Optional[Dict[str, Any]],
+    max_position_embeddings: int,
+    seq_len: int,
+) -> torch.Tensor:
+    """
+    Apply RoPE scaling to inverse frequencies for context extension.
+
+    Args:
+        inv_freq: Base inverse frequencies
+        rope_scaling: Scaling configuration dict with keys:
+            - type: "linear", "dynamic", "ntk", or "yarn"
+            - factor: Scaling factor (> 1.0)
+            - original_max_position_embeddings: Original context length (for dynamic)
+            - attention_factor: Attention scaling factor (for yarn)
+        max_position_embeddings: Maximum position embeddings
+        seq_len: Current sequence length
+
+    Returns:
+        Scaled inverse frequencies
+    """
+    if rope_scaling is None:
+        return inv_freq
+
+    scaling_type = rope_scaling.get("type", "linear")
+    scaling_factor = rope_scaling.get("factor", 1.0)
+
+    if scaling_factor <= 1.0:
+        return inv_freq
+
+    if scaling_type == "linear":
+        # Linear scaling: Simply divide frequencies by scaling factor
+        # This is the simplest form: positions are linearly compressed
+        return inv_freq / scaling_factor
+
+    elif scaling_type == "dynamic":
+        # Dynamic NTK-aware scaling (LLaMA-2 style)
+        # Adjusts theta based on sequence length dynamically
+        original_max = rope_scaling.get("original_max_position_embeddings", max_position_embeddings)
+
+        if seq_len > original_max:
+            # Only scale when sequence exceeds original max
+            scale = seq_len / original_max
+            # NTK-aware: scale theta by (scale)^(dim/(dim-2))
+            # This preserves high-frequency information better
+            dim = inv_freq.shape[0] * 2  # head_dim
+            theta_scale = scale ** (dim / (dim - 2))
+            inv_freq = inv_freq / theta_scale
+
+        return inv_freq
+
+    elif scaling_type == "ntk":
+        # NTK-aware interpolation
+        # Scales theta to extend context while preserving properties
+        dim = inv_freq.shape[0] * 2  # head_dim
+        alpha = scaling_factor ** (dim / (dim - 2))
+        return inv_freq / alpha
+
+    elif scaling_type == "yarn":
+        # Yarn: More sophisticated scaling with attention factor
+        # Combines NTK-aware scaling with attention rescaling
+        original_max = rope_scaling.get("original_max_position_embeddings", max_position_embeddings)
+        attention_factor = rope_scaling.get("attention_factor", 1.0)
+
+        # Compute NTK-aware scale
+        dim = inv_freq.shape[0] * 2
+        alpha = scaling_factor ** (dim / (dim - 2))
+
+        # Apply Yarn's frequency-dependent scaling
+        # High frequencies are scaled less aggressively
+        freq_factors = torch.pow(inv_freq / inv_freq[0], 0.5)
+        scaled_inv_freq = inv_freq / (alpha * freq_factors)
+
+        return scaled_inv_freq
+
+    else:
+        raise ValueError(f"Unknown rope_scaling type: {scaling_type}")
 
 
 def build_rope_cache(
@@ -20,12 +111,14 @@ def build_rope_cache(
     theta: float = 10000.0,
     device: torch.device = None,
     dtype: torch.dtype = None,
+    rope_scaling: Optional[Dict[str, Any]] = None,
+    max_position_embeddings: int = 2048,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Build RoPE (Rotary Position Embedding) cache for efficient computation.
 
     Creates cosine and sine embeddings that will be used to rotate query/key vectors
-    based on their positions in the sequence.
+    based on their positions in the sequence. Supports context extension via scaling.
 
     Args:
         seq_len: Maximum sequence length to cache
@@ -33,6 +126,12 @@ def build_rope_cache(
         theta: Base frequency for rotation (default: 10000.0)
         device: Device to create tensors on
         dtype: Data type for the cache tensors
+        rope_scaling: Optional scaling configuration for context extension:
+            - {"type": "linear", "factor": 2.0}  # Linear scaling by 2x
+            - {"type": "dynamic", "factor": 2.0, "original_max_position_embeddings": 2048}
+            - {"type": "ntk", "factor": 2.0}
+            - {"type": "yarn", "factor": 2.0, "attention_factor": 1.0}
+        max_position_embeddings: Maximum position embeddings (for scaling)
 
     Returns:
         Tuple of (cos_cache, sin_cache), each of shape (seq_len, head_dim)
@@ -44,9 +143,18 @@ def build_rope_cache(
         application using element-wise operations.
 
     Examples:
+        >>> # Standard RoPE
         >>> cos_cache, sin_cache = build_rope_cache(512, 64)
         >>> assert cos_cache.shape == (512, 64)
-        >>> assert sin_cache.shape == (512, 64)
+
+        >>> # With linear scaling (2x context)
+        >>> scaling = {"type": "linear", "factor": 2.0}
+        >>> cos_cache, sin_cache = build_rope_cache(1024, 64, rope_scaling=scaling)
+        >>> assert cos_cache.shape == (1024, 64)
+
+        >>> # With dynamic NTK scaling
+        >>> scaling = {"type": "dynamic", "factor": 2.0}
+        >>> cos_cache, sin_cache = build_rope_cache(4096, 64, rope_scaling=scaling, max_position_embeddings=2048)
     """
     # Compute inverse frequencies for each dimension pair
     # freq_i = 1 / (theta^(2i/head_dim)) for i in [0, head_dim/2)
@@ -54,6 +162,10 @@ def build_rope_cache(
     inv_freq = 1.0 / (
         theta ** (torch.arange(0, half_dim, device=device, dtype=torch.float32) / half_dim)
     )
+
+    # Apply scaling if configured
+    if rope_scaling is not None:
+        inv_freq = apply_rope_scaling(inv_freq, rope_scaling, max_position_embeddings, seq_len)
 
     # Create position indices
     positions = torch.arange(seq_len, device=device, dtype=torch.float32)
@@ -138,28 +250,43 @@ def apply_rotary_pos_emb(
 
 class RotaryEmbedding(nn.Module):
     """
-    Rotary Position Embedding module with caching.
+    Rotary Position Embedding module with caching and scaling support.
 
     This module maintains a cache of cos/sin embeddings and automatically
     extends it when sequences longer than the cache are encountered.
+    Supports context extension via rope_scaling.
 
     Args:
         head_dim: Dimension of each attention head
         max_position_embeddings: Maximum sequence length to pre-cache (default: 2048)
         theta: Base frequency for rotations (default: 10000.0)
+        rope_scaling: Optional scaling configuration for context extension:
+            - {"type": "linear", "factor": 2.0}
+            - {"type": "dynamic", "factor": 2.0, "original_max_position_embeddings": 2048}
+            - {"type": "ntk", "factor": 2.0}
+            - {"type": "yarn", "factor": 2.0, "attention_factor": 1.0}
 
     Attributes:
         head_dim: Dimension of attention heads
         theta: Base rotation frequency
+        rope_scaling: Scaling configuration
+        max_position_embeddings: Maximum position embeddings
         max_seq_len_cached: Current maximum cached sequence length
 
     Examples:
+        >>> # Standard RoPE
         >>> rope = RotaryEmbedding(head_dim=64, max_position_embeddings=2048)
         >>> q = torch.randn(2, 8, 512, 64)
         >>> k = torch.randn(2, 8, 512, 64)
         >>> q_rot, k_rot = rope(q, k)
         >>> assert q_rot.shape == q.shape
-        >>> assert k_rot.shape == k.shape
+
+        >>> # With linear scaling (2x context)
+        >>> rope_scaling = {"type": "linear", "factor": 2.0}
+        >>> rope = RotaryEmbedding(head_dim=64, max_position_embeddings=4096, rope_scaling=rope_scaling)
+        >>> q = torch.randn(2, 8, 4096, 64)  # 2x longer sequence
+        >>> k = torch.randn(2, 8, 4096, 64)
+        >>> q_rot, k_rot = rope(q, k)  # Works with extended context
     """
 
     def __init__(
@@ -167,10 +294,13 @@ class RotaryEmbedding(nn.Module):
         head_dim: int,
         max_position_embeddings: int = 2048,
         theta: float = 10000.0,
+        rope_scaling: Optional[Dict[str, Any]] = None,
     ):
         super().__init__()
         self.head_dim = head_dim
         self.theta = theta
+        self.rope_scaling = rope_scaling
+        self.max_position_embeddings = max_position_embeddings
         self.max_seq_len_cached = 0
 
         # Register buffers (not parameters, but part of state_dict)
@@ -181,19 +311,21 @@ class RotaryEmbedding(nn.Module):
         self._build_cache(max_position_embeddings)
 
     def _build_cache(self, seq_len: int):
-        """Build or extend the RoPE cache."""
+        """Build or extend the RoPE cache with optional scaling."""
         if seq_len > self.max_seq_len_cached:
             # Get device and dtype from existing cache or use defaults
             device = self.cos_cache.device if self.cos_cache.numel() > 0 else None
             dtype = self.cos_cache.dtype if self.cos_cache.numel() > 0 else None
 
-            # Build new cache
+            # Build new cache with scaling support
             cos_cache, sin_cache = build_rope_cache(
                 seq_len,
                 self.head_dim,
                 self.theta,
                 device=device,
                 dtype=dtype,
+                rope_scaling=self.rope_scaling,
+                max_position_embeddings=self.max_position_embeddings,
             )
 
             self.cos_cache = cos_cache

@@ -1,0 +1,318 @@
+# Baguettotron-321M Smoke Test Configuration
+# Microscopic training pipeline test to verify everything works
+# Complete train/eval/inference test in 5-10 minutes
+#
+# Purpose: Test the entire pipeline (data loading, training loop, evaluation, generation)
+# with minimal resources before committing to hours/days of training
+
+# ============================================================================
+# MODEL CONFIGURATION (Reduced for fast testing)
+# ============================================================================
+model:
+  config: "321m"
+
+  # Override for fast tests (uncomment for minimal model)
+  # num_hidden_layers: 12      # Instead of 80 (85% faster)
+  # hidden_size: 384           # Instead of 576 (smaller)
+  # num_attention_heads: 6     # Instead of 9
+  # num_key_value_heads: 2     # Instead of 3
+  # intermediate_size: 1024    # Instead of 1536
+
+# ============================================================================
+# DATASET CONFIGURATION (Tiny Dataset)
+# ============================================================================
+data:
+  # Minimal dataset for smoke test
+  datasets:
+    - name: "smoke_test"
+      weight: 1.0
+      path: "data/smoke_test.json"
+      # Create with: head -n 100 data/wikipedia_train.json > data/smoke_test.json
+
+  # Minimal parameters
+  max_length: 512             # Short context for speed
+  shuffle: true
+  num_workers: 2              # Fewer workers
+
+# ============================================================================
+# TRAINING HYPERPARAMETERS (Smoke Test)
+# ============================================================================
+training:
+  # Minimal epochs
+  epochs: 1                   # Only 1 epoch
+  max_steps: 100              # LIMITED TO 100 STEPS
+
+  # Batch configuration (small)
+  batch_size: 2               # Minimal batch
+  gradient_accumulation_steps: 4  # Effective batch = 8
+
+  # Learning rate
+  learning_rate: 1.0e-4
+  lr_scheduler: "constant"    # No scheduler for speed
+  warmup_steps: 10            # Minimal warmup
+
+  # Optimization
+  optimizer: "adamw"
+  weight_decay: 0.1
+  max_grad_norm: 1.0
+
+  # Precision
+  mixed_precision: "bf16"     # or "fp16"
+
+  # Logging (very frequent for monitoring)
+  logging_steps: 5            # Log every 5 steps
+  eval_steps: 50              # Evaluate halfway
+
+  # Device
+  device: "cuda"
+  num_gpus: 1
+
+# ============================================================================
+# CHECKPOINT MANAGEMENT (Minimal)
+# ============================================================================
+checkpoint:
+  save_steps: 50              # Save only 2 times
+  save_total_limit: 2         # Keep max 2 checkpoints
+  output_dir: "outputs/baguettotron_321m_smoke_test"
+  save_safetensors: true
+  save_optimizer_states: false  # Not necessary for smoke test
+
+# ============================================================================
+# EVALUATION (Minimal)
+# ============================================================================
+evaluation:
+  eval_dataset: "data/smoke_test_valid.json"
+  eval_batch_size: 2
+  compute_metrics: true
+  evaluate_at_start: true     # Evaluate at start
+  evaluate_at_end: true       # Evaluate at end
+
+# ============================================================================
+# GENERATION TESTS (Fast)
+# ============================================================================
+generation:
+  test_prompts:
+    - "Hello world"
+    - "Generation test"
+    - "1 + 1 ="
+
+  max_new_tokens: 50          # Short for speed
+  temperature: 0.8
+  top_k: 50
+  top_p: 0.9
+
+  test_every_n_steps: 50      # Test 2 times
+
+# ============================================================================
+# MONITORING (Simplified)
+# ============================================================================
+monitoring:
+  use_tensorboard: true
+  tensorboard_dir: "runs/smoke_test"
+  use_wandb: false            # Disabled for smoke test
+
+  # Basic logging
+  log_learning_rate: true
+  log_gradient_norm: true
+  log_gpu_memory: true
+
+# ============================================================================
+# HARDWARE OPTIMIZATION (Speed over Memory)
+# ============================================================================
+hardware:
+  # Memory optimization (disabled for speed)
+  gradient_checkpointing: false  # DISABLED for maximum speed
+  empty_cache_steps: 1000        # Rarely
+
+  # Speed optimizations
+  torch_compile: false
+  amp_backend: "native"
+  pin_memory: true
+  persistent_workers: false      # No persistent workers
+
+  # CUDA
+  cudnn_benchmark: true
+  cudnn_deterministic: false
+
+# ============================================================================
+# SPECIAL FEATURES (Minimal)
+# ============================================================================
+special_features:
+  use_chat_template: true
+  enable_thinking_tags: false   # Disabled for smoke test
+  enable_rag_tags: false        # Disabled for smoke test
+  languages: ["en"]             # English only
+
+# ============================================================================
+# REPRODUCIBILITY
+# ============================================================================
+reproducibility:
+  seed: 42
+  deterministic: false
+  benchmark: true
+
+# ============================================================================
+# SMOKE TEST - INSTRUCTIONS
+# ============================================================================
+#
+# OBJECTIVE:
+# Quickly verify that training works without errors.
+# Duration: 5-10 minutes instead of several hours.
+#
+# STEPS:
+#
+# 1. CREATE TEST DATASET
+# ```bash
+# # If you have Wikipedia
+# head -n 100 data/wikipedia_train.json > data/smoke_test.json
+# head -n 20 data/wikipedia_valid.json > data/smoke_test_valid.json
+#
+# # Or create a minimal dataset
+# echo '{"text": "Hello world"}' > data/smoke_test.json
+# echo '{"text": "Test validation"}' > data/smoke_test_valid.json
+# ```
+#
+# 2. RUN SMOKE TEST
+# ```bash
+# ./baguettotron train --config-file configs/train_321m_smoke_test.yaml
+# ```
+#
+# 3. CHECKS
+# The smoke test passes if:
+# - ✓ Model loads without errors
+# - ✓ Training starts and completes 100 steps
+# - ✓ Evaluation works
+# - ✓ Generation produces text
+# - ✓ Checkpoints are saved
+# - ✓ No OOM (Out of Memory)
+# - ✓ No NaN in losses
+#
+# 4. EXPECTED RESULTS
+# ```
+# Step 100/100: loss=7.5, lr=0.0001, time=2.3s/step
+# Evaluation: perplexity=1812, loss=7.5
+# Generation: "Hello world is a common..."
+# ✓ Smoke test passed!
+# ```
+#
+# 5. IF IT WORKS
+# You can move to production configuration:
+# - train_321m_wikipedia_rtx3090.yaml (Wikipedia production)
+# - train_321m_synth.yaml (SYNTH production)
+#
+# 6. IF IT FAILS
+# Check:
+# - CUDA available: python -c "import torch; print(torch.cuda.is_available())"
+# - Sufficient VRAM: nvidia-smi
+# - Dataset exists: ls -lh data/smoke_test.json
+# - Dependencies: pip install -r requirements.txt
+#
+# ============================================================================
+# ALTERNATIVE SMOKE TEST CONFIGURATIONS
+# ============================================================================
+#
+# EVEN FASTER SMOKE TEST (minimal model):
+# Uncomment the model overrides above:
+# - num_hidden_layers: 12 (instead of 80)
+# - hidden_size: 384 (instead of 576)
+# Result: ~30M parameters instead of 321M
+# Time: 2-3 minutes instead of 5-10 minutes
+#
+# MORE COMPLETE SMOKE TEST (more steps):
+# Modify:
+# - max_steps: 500 (instead of 100)
+# - eval_steps: 100
+# - test_every_n_steps: 100
+# Duration: 20-30 minutes
+# Better convergence verification
+#
+# ============================================================================
+# ESTIMATED MEMORY USAGE (Smoke Test)
+# ============================================================================
+#
+# Configuration: Batch 2, Context 512, NO Gradient Checkpointing
+# - Model: ~640 MB
+# - Optimizer: ~1.9 GB
+# - Activations: ~2-3 GB (short context)
+# - Gradients: ~640 MB
+# - TOTAL: ~5-6 GB / 24 GB
+# - Margin: 18 GB ✓✓✓
+#
+# If reduced model (12 layers):
+# - Model: ~100 MB
+# - Optimizer: ~300 MB
+# - Activations: ~1-2 GB
+# - TOTAL: ~2-3 GB / 24 GB
+# - Works even on 8GB GPU!
+#
+# PERFORMANCE:
+# - Tokens/sec: ~2000-3000 (small batch + short context)
+# - Steps/sec: ~3-5
+# - 100 steps: ~20-30 seconds
+# - With logs/eval: 5-10 minutes total
+#
+# ============================================================================
+# COMPLETE USAGE EXAMPLE
+# ============================================================================
+#
+# ```bash
+# # 1. Create minimal dataset
+# mkdir -p data
+# python << EOF
+# import json
+#
+# # Train dataset (100 examples)
+# with open("data/smoke_test.json", "w") as f:
+#     for i in range(100):
+#         text = f"This is test example number {i}. "
+#         text += "Testing the Baguettotron-321M model. "
+#         text += f"Example {i} of smoke test dataset."
+#         json.dump({"text": text}, f)
+#         f.write("\n")
+#
+# # Validation dataset (20 examples)
+# with open("data/smoke_test_valid.json", "w") as f:
+#     for i in range(20):
+#         text = f"Validation example {i}. "
+#         text += "Testing model evaluation."
+#         json.dump({"text": text}, f)
+#         f.write("\n")
+# EOF
+#
+# # 2. Run smoke test
+# ./baguettotron train --config-file configs/train_321m_smoke_test.yaml
+#
+# # 3. Check logs
+# tail -f outputs/baguettotron_321m_smoke_test/train.log
+#
+# # 4. Monitor TensorBoard
+# tensorboard --logdir runs/smoke_test
+# ```
+#
+# ============================================================================
+# SMOKE TEST CHECKLIST
+# ============================================================================
+#
+# Before running:
+# ☐ GPU available (nvidia-smi)
+# ☐ CUDA installed (python -c "import torch; print(torch.cuda.is_available())")
+# ☐ Dataset created (ls data/smoke_test.json)
+# ☐ Dependencies installed (pip list)
+# ☐ Sufficient disk space (df -h)
+#
+# During execution:
+# ☐ No compilation errors
+# ☐ Model loads
+# ☐ Training starts
+# ☐ Loss decreases (even slightly)
+# ☐ No OOM
+# ☐ No NaN
+#
+# After execution:
+# ☐ 100 steps completed
+# ☐ Checkpoints saved
+# ☐ Generation works
+# ☐ Clean logs
+# ☐ TensorBoard works
+#
+# If all ☐ are ✓, your setup is ready for production!

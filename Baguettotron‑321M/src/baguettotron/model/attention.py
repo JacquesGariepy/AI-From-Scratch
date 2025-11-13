@@ -9,7 +9,7 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Dict, Any
 
 from .rope import RotaryEmbedding
 
@@ -75,6 +75,7 @@ class GroupedQueryAttention(nn.Module):
         num_key_value_heads: int,
         max_position_embeddings: int = 2048,
         rope_theta: float = 10000.0,
+        rope_scaling: Optional[dict] = None,
         attention_dropout: float = 0.0,
         bias: bool = False,
     ):
@@ -110,11 +111,12 @@ class GroupedQueryAttention(nn.Module):
         # Output projection
         self.o_proj = nn.Linear(num_attention_heads * self.head_dim, hidden_size, bias=bias)
 
-        # Rotary position embeddings
+        # Rotary position embeddings with optional scaling
         self.rotary_emb = RotaryEmbedding(
             head_dim=self.head_dim,
             max_position_embeddings=max_position_embeddings,
             theta=rope_theta,
+            rope_scaling=rope_scaling,
         )
 
     def forward(

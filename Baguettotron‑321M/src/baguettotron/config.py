@@ -74,7 +74,18 @@ class BaguettotronConfig:
     tie_word_embeddings: bool = False
 
     # Activation
-    hidden_activation: str = "silu"
+    hidden_activation: str = "silu"  # Legacy name
+    hidden_act: str = "silu"         # Official name (used by transformers)
+
+    # Bias settings (official Baguettotron uses no bias)
+    attention_bias: bool = False     # No bias in attention projections
+    mlp_bias: bool = False           # No bias in MLP layers
+
+    # RoPE scaling (null = no scaling)
+    rope_scaling: Optional[dict] = None
+
+    # Tensor parallelism (for distributed training)
+    pretraining_tp: int = 1
 
     # Generation
     use_cache: bool = True
@@ -90,6 +101,10 @@ class BaguettotronConfig:
     # Model type (for compatibility)
     model_type: str = "llama"
     architectures: list = field(default_factory=lambda: ["LlamaForCausalLM"])
+
+    # Metadata (optional, for HuggingFace compatibility)
+    torch_dtype: str = "bfloat16"
+    transformers_version: Optional[str] = None
 
     def __post_init__(self):
         """Post-initialization setup (validation moved to model)."""
@@ -119,23 +134,53 @@ class BaguettotronConfig:
             Parameters: ~321.0M
         """
         return cls(
+            # Architecture
             vocab_size=65536,
             hidden_size=576,
             num_hidden_layers=80,
             num_attention_heads=9,
             num_key_value_heads=3,
             intermediate_size=1536,
+
+            # Position embeddings
             max_position_embeddings=4096,
             rope_theta=10000.0,
-            tie_word_embeddings=True,
+            rope_scaling=None,
+
+            # Normalization
             rms_norm_eps=1e-5,
+
+            # Embeddings
+            tie_word_embeddings=True,
+
+            # Activation
             hidden_activation="silu",
+            hidden_act="silu",
+
+            # Bias settings (official model uses no bias)
+            attention_bias=False,
+            mlp_bias=False,
+
+            # Regularization
             attention_dropout=0.0,
+
+            # Generation
             use_cache=True,
+
+            # Initialization
             initializer_range=0.02,
+
+            # Tensor parallelism
+            pretraining_tp=1,
+
+            # Special tokens
             bos_token_id=1,
             eos_token_id=2,
             pad_token_id=None,
+
+            # Metadata
+            torch_dtype="bfloat16",
+            transformers_version="4.51.3",
         )
 
     def approximate_params(self) -> int:
@@ -186,40 +231,101 @@ class BaguettotronConfig:
         return total
 
     def to_dict(self) -> dict:
-        """Convert configuration to dictionary for HuggingFace compatibility."""
-        return {
+        """
+        Convert configuration to dictionary for HuggingFace compatibility.
+
+        Returns dictionary matching official PleIAs/Baguettotron config.json format.
+        """
+        config_dict = {
+            # Core architecture
             "vocab_size": self.vocab_size,
             "hidden_size": self.hidden_size,
             "num_hidden_layers": self.num_hidden_layers,
             "num_attention_heads": self.num_attention_heads,
             "num_key_value_heads": self.num_key_value_heads,
             "intermediate_size": self.intermediate_size,
+
+            # Position embeddings
             "max_position_embeddings": self.max_position_embeddings,
             "rope_theta": self.rope_theta,
+            "rope_scaling": self.rope_scaling,
+
+            # Normalization
             "rms_norm_eps": self.rms_norm_eps,
-            "attention_dropout": self.attention_dropout,
+
+            # Embeddings
             "tie_word_embeddings": self.tie_word_embeddings,
-            "hidden_activation": self.hidden_activation,
+
+            # Activation (include both names for compatibility)
+            "hidden_act": self.hidden_act,  # Official name
+
+            # Bias settings
+            "attention_bias": self.attention_bias,
+            "mlp_bias": self.mlp_bias,
+
+            # Head dimension
+            "head_dim": self.head_dim if self.head_dim else self.hidden_size // self.num_attention_heads,
+
+            # Regularization
+            "attention_dropout": self.attention_dropout,
+
+            # Generation
             "use_cache": self.use_cache,
+
+            # Initialization
             "initializer_range": self.initializer_range,
+
+            # Tensor parallelism
+            "pretraining_tp": self.pretraining_tp,
+
+            # Special tokens
             "bos_token_id": self.bos_token_id,
             "eos_token_id": self.eos_token_id,
-            "pad_token_id": self.pad_token_id,
+
+            # Model type
             "model_type": self.model_type,
             "architectures": self.architectures,
+
+            # Metadata
+            "torch_dtype": self.torch_dtype,
         }
+
+        # Add transformers_version if available
+        if self.transformers_version:
+            config_dict["transformers_version"] = self.transformers_version
+
+        return config_dict
 
     @classmethod
     def from_dict(cls, config_dict: dict) -> "BaguettotronConfig":
         """
         Create configuration from dictionary.
 
+        This method handles both legacy and official config formats, ensuring
+        compatibility with official PleIAs/Baguettotron checkpoints.
+
         Args:
             config_dict: Dictionary containing configuration parameters
 
         Returns:
             BaguettotronConfig: Configuration instance
+
+        Examples:
+            >>> # Load from official HuggingFace config.json
+            >>> config = BaguettotronConfig.from_dict(json.load(open('config.json')))
+
+            >>> # Load from checkpoint
+            >>> checkpoint = torch.load('model.pt')
+            >>> config = BaguettotronConfig.from_dict(checkpoint['config'])
         """
+        # Handle legacy hidden_activation -> hidden_act mapping
+        if 'hidden_activation' in config_dict and 'hidden_act' not in config_dict:
+            config_dict['hidden_act'] = config_dict['hidden_activation']
+
+        # Ensure both forms are present for backward compatibility
+        if 'hidden_act' in config_dict and 'hidden_activation' not in config_dict:
+            config_dict['hidden_activation'] = config_dict['hidden_act']
+
         # Filter only known parameters
         known_params = {
             k: v for k, v in config_dict.items()

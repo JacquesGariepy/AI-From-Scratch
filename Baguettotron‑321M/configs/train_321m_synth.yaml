@@ -1,0 +1,358 @@
+# Baguettotron-321M Training Configuration - SYNTH Dataset
+# Official configuration for training on SYNTH (~200B tokens)
+# Replicates PleIAs' official training on 16× H100 from Jean Zay supercomputer
+
+# ============================================================================
+# MODEL CONFIGURATION (Official 321M)
+# ============================================================================
+model:
+  # Option 1: Use the "321m" preset (recommended)
+  config: "321m"
+
+  # Option 2: Override specific parameters (uncomment to customize)
+  # All parameters from https://huggingface.co/PleIAs/Baguettotron/blob/main/config.json
+
+  # Base architecture
+  # vocab_size: 65536
+  # hidden_size: 576
+  # num_hidden_layers: 80
+  # num_attention_heads: 9
+  # num_key_value_heads: 3
+  # intermediate_size: 1536
+
+  # Position embeddings
+  # max_position_embeddings: 4096
+  # rope_theta: 10000.0
+
+  # Normalization
+  # rms_norm_eps: 1.0e-5
+
+  # Embeddings
+  # tie_word_embeddings: true
+
+  # Activation
+  # hidden_activation: "silu"
+
+  # Dropout
+  # attention_dropout: 0.0
+
+  # Cache and tokens
+  # use_cache: true
+  # bos_token_id: 1
+  # eos_token_id: 2
+  # pad_token_id: null
+
+  # Initialization
+  # initializer_range: 0.02
+
+# ============================================================================
+# SYNTH DATASET CONFIGURATION (HuggingFace Hub)
+# ============================================================================
+data:
+  # SYNTH dataset - automatic download from HuggingFace Hub
+  # First run: downloads ~500GB dataset (takes hours/days)
+  # Subsequent runs: uses cached version (instant)
+  datasets:
+    - name: "synth"
+      source: "huggingface"         # Automatic download from HF Hub
+      dataset_name: "PleIAs/SYNTH"  # Official SYNTH dataset
+      split: "train"
+      weight: 1.0                   # 100% SYNTH
+      max_samples: 10000            # TESTING: limit to 10k samples
+      # For FULL REPLICATION: remove max_samples line above
+      # Full dataset: ~200B tokens, requires ~500GB disk space
+      # Cache location: ~/.cache/baguettotron/datasets/synth_train.json
+
+  # Sequence parameters
+  max_length: 4096            # Complete context window
+  shuffle: true
+  num_workers: 8              # More workers for large dataset
+
+  # Preprocessing
+  preprocessing:
+    remove_code: true         # SYNTH is non-code
+    multilingual: true        # ~20% EU languages
+    languages: ["fr", "en", "de", "it", "es", "pl"]
+
+# ============================================================================
+# TRAINING HYPERPARAMETERS (Official Configuration)
+# ============================================================================
+training:
+  # Epochs and duration
+  epochs: 1                   # 1 epoch on ~200B tokens is sufficient
+  max_steps: null             # Let the complete epoch run
+
+  # Batch configuration (for multi-GPU like PleIAs)
+  batch_size: 32              # 32 per GPU
+  gradient_accumulation_steps: 4  # Effective batch = 128 per GPU
+  # On 16 GPUs: effective total batch = 2048 sequences
+
+  # Learning rate (official setup)
+  learning_rate: 1.0e-4       # Base LR
+  lr_scheduler: "cosine"      # Cosine with warmup
+  warmup_steps: 2000          # 2000 steps of warmup
+  min_lr: 1.0e-6              # Minimum LR at the end
+
+  # Optimization
+  optimizer: "adamw"
+  weight_decay: 0.1
+  max_grad_norm: 1.0
+  adam_beta1: 0.9
+  adam_beta2: 0.95            # Beta2 optimized for large models
+  adam_epsilon: 1.0e-8
+
+  # Precision (as official)
+  mixed_precision: "bf16"     # BFloat16 (Jean Zay H100)
+
+  # Logging
+  logging_steps: 10
+  eval_steps: 1000
+
+  # Device
+  device: "cuda"
+  num_gpus: 16                # 16× H100 as official
+  distributed: true           # Distributed training
+  distributed_backend: "nccl" # NVIDIA backend
+
+  # Distributed settings
+  world_size: 16
+  local_rank: null            # Auto-detected
+  master_addr: "localhost"
+  master_port: "29500"
+
+# ============================================================================
+# CHECKPOINT MANAGEMENT
+# ============================================================================
+checkpoint:
+  # Frequent saving (large training)
+  save_steps: 2500            # Every 2500 steps
+  save_total_limit: 10        # Keep 10 checkpoints
+  output_dir: "outputs/baguettotron_321m_synth"
+
+  # Optimized format
+  save_safetensors: true
+  save_optimizer_states: true # Save optimizer for resumption
+
+  # Resumption (optional)
+  resume_from_checkpoint: null
+
+# ============================================================================
+# EVALUATION (On validation subset)
+# ============================================================================
+evaluation:
+  # Validation set (subset of SYNTH)
+  eval_dataset: "data/synth_valid.json"
+  eval_batch_size: 32
+  eval_steps: 1000            # Evaluate every 1000 steps
+
+  # Metrics
+  compute_metrics: true
+  metrics: ["loss", "perplexity"]
+
+  # Benchmarks (optional - during training)
+  run_benchmarks: false       # Disabled for speed
+  benchmark_datasets: ["mmlu", "gsm8k", "hotpotqa"]
+
+# ============================================================================
+# GENERATION TESTS (Verification during training)
+# ============================================================================
+generation:
+  # Multilingual test prompts
+  test_prompts:
+    # French
+    - "Explique ce qu'est un transformer en français."
+    - "Calcule 347 × 89"
+
+    # English
+    - "What is artificial intelligence?"
+    - "Calculate the square root of 144"
+
+    # German
+    - "Erkläre maschinelles Lernen auf Deutsch."
+
+    # Italian
+    - "Cos'è l'intelligenza artificiale in italiano?"
+
+  # Generation parameters
+  max_new_tokens: 200
+  temperature: 0.7
+  top_k: 50
+  top_p: 0.9
+  do_sample: true
+
+  # Test frequency
+  test_every_n_steps: 2500
+
+# ============================================================================
+# MONITORING & LOGGING (Production)
+# ============================================================================
+monitoring:
+  # TensorBoard
+  use_tensorboard: true
+  tensorboard_dir: "runs/synth_321m"
+
+  # Weights & Biases (recommended for production)
+  use_wandb: true
+  wandb_project: "baguettotron-321m"
+  wandb_run_name: "synth-official-replication"
+  wandb_entity: null          # Your username
+  wandb_log_model: true       # Upload checkpoints
+
+  # MLflow (optional)
+  use_mlflow: false
+
+  # Detailed logging
+  log_learning_rate: true
+  log_gradient_norm: true
+  log_parameter_norm: true
+  log_gpu_memory: true
+
+# ============================================================================
+# HARDWARE OPTIMIZATION (Multi-GPU H100)
+# ============================================================================
+hardware:
+  # Memory optimization
+  gradient_checkpointing: false  # Not necessary with H100
+  empty_cache_steps: 500         # Clean cache rarely
+
+  # Compile optimizations
+  torch_compile: true            # PyTorch 2.0+ compile
+  compile_mode: "reduce-overhead"
+
+  # Mixed precision backend
+  amp_backend: "native"
+
+  # DataLoader optimization
+  pin_memory: true
+  persistent_workers: true
+  prefetch_factor: 2
+
+  # CUDA/cuDNN
+  cudnn_benchmark: true
+  cudnn_deterministic: false
+
+  # Communication (distributed)
+  find_unused_parameters: false
+  gradient_as_bucket_view: true
+  static_graph: true
+
+# ============================================================================
+# SPECIAL FEATURES (Baguettotron SYNTH-specific)
+# ============================================================================
+special_features:
+  # Chat template and format
+  use_chat_template: true
+  enable_thinking_tags: true     # <think>...</think>
+  thinking_mode: "always"        # Always generate with thinking
+
+  # RAG features (SYNTH contains RAG)
+  enable_rag_tags: true
+  max_sources: 10                # <source_1> to <source_10>
+  enable_citations: true         # Support +[quote]+
+
+  # Multilingual (SYNTH ~20% EU languages)
+  languages: ["fr", "en", "de", "it", "es", "pl"]
+  language_detection: true
+
+  # SYNTH specialized tasks
+  enable_wikipedia_memorization: true
+  enable_arithmetic_reasoning: true
+  enable_text_editing: true
+  enable_creative_writing: true
+
+  # Control tokens
+  control_tokens: ["→", "↺", "※", "?maybe?", "●", "◐", "○", "⚠", "☐", "☑", "✓"]
+  entropy_tokens: true           # ⟨H≈0.1⟩ to ⟨H≈1.8⟩
+
+# ============================================================================
+# REPRODUCIBILITY
+# ============================================================================
+reproducibility:
+  seed: 42
+  deterministic: false           # Disabled for performance
+  benchmark: true
+
+# ============================================================================
+# DATASET SYNTH - INFORMATION
+# ============================================================================
+#
+# OFFICIAL SOURCE:
+# - HuggingFace: https://huggingface.co/datasets/PleIAs/SYNTH
+# - Size: ~200 billion tokens
+# - Format: JSON with formatted conversations
+# - Content: Multi-task synthetic
+#
+# DOWNLOAD:
+# ```bash
+# # Install HuggingFace Hub
+# pip install huggingface_hub
+#
+# # Download SYNTH (requires ~500GB space)
+# from datasets import load_dataset
+# dataset = load_dataset("PleIAs/SYNTH")
+# dataset.save_to_disk("data/SYNTH")
+# ```
+#
+# PREPROCESSING:
+# The dataset is already formatted with:
+# - Dialogue tags (<|im_start|>, <|im_end|>)
+# - Reasoning tags (<think>)
+# - RAG tags (<source_N>)
+# - Control tokens
+#
+# SYNTH STRUCTURE:
+# - Wikipedia vital articles (memorization)
+# - RAG with grounding
+# - Arithmetic and reasoning
+# - Text editing
+# - Information extraction
+# - Constrained creative writing
+# - Cooking recipes
+#
+# ============================================================================
+# ESTIMATED TRAINING TIME
+# ============================================================================
+#
+# OFFICIAL CONFIGURATION (16× H100):
+# - Dataset: ~200B tokens
+# - Total batch: 2048 sequences × 4096 tokens = ~8.4M tokens/step
+# - Steps for 1 epoch: ~200B / 8.4M ≈ 24,000 steps
+# - Time per step: ~5-8 seconds
+# - Total time: 24,000 × 6s ≈ 144,000s ≈ 40 hours ≈ 1.7 days
+# - With optimizations: 2-3 weeks (includes eval, logging, checkpoints)
+#
+# REDUCED CONFIGURATION (1× RTX 3090):
+# - Not recommended for complete dataset
+# - Use a 10-50GB subset
+# - Or use Wikipedia as proxy
+# - Estimated time for 50GB subset: several weeks
+#
+# ============================================================================
+# IMPORTANT NOTES
+# ============================================================================
+#
+# 1. REQUIRED HARDWARE:
+#    - Minimum: 8× H100 or A100 (80GB)
+#    - Recommended: 16× H100 (as official)
+#    - RTX 3090: Use train_321m_rtx3090.yaml with subset
+#
+# 2. DISK MEMORY:
+#    - SYNTH dataset: ~500GB
+#    - Checkpoints: ~10GB each
+#    - Logs and cache: ~50GB
+#    - Total recommended: ~1TB free space
+#
+# 3. BANDWIDTH:
+#    - SYNTH download: several hours/days
+#    - Consider downloading directly on cluster
+#
+# 4. COST:
+#    - Jean Zay (academic): Free with allocation
+#    - Cloud (16× H100): ~$50-80/hour × 40h = $2000-3200
+#    - Alternative: Fine-tune from official checkpoint
+#
+# 5. ALTERNATIVES:
+#    - Use the official pre-trained model
+#    - Fine-tune on your specific data
+#    - Train on SYNTH subset (10-50GB)
+#    - Use Wikipedia as proxy

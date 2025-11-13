@@ -92,6 +92,37 @@ This will:
 - ✅ Set up the CLI tool
 - ✅ Make you ready to train!
 
+### Quick Smoke Test (40 seconds)
+
+Test your installation with the fastest smoke test:
+
+```bash
+# Run basic smoke test (tests core pipeline)
+./baguettotron train --config-file configs/train_321m_smoke_test.yaml
+```
+
+**What this tests**: Model loading (321M), data loading (100 samples), training (100 steps), checkpointing.
+
+**Output**: You should see:
+```
+Model parameters: 321.0M ✅
+Training examples: 100
+Epoch 1/1: 100%|███████| 50/50 [00:40<00:00, 1.8it/s]
+Training completed in 40s ✅
+```
+
+### Test HuggingFace Integration (1-2 minutes)
+
+Test HuggingFace dataset loading with a small sample:
+
+```bash
+# Test HF integration (50 Wikipedia articles)
+./baguettotron train --config-file configs/train_321m_smoke_test_hf.yaml
+```
+
+**First run**: Downloads and tokenizes 50 Wikipedia articles (~1-2 minutes)
+**Subsequent runs**: Uses cache (30 seconds)
+
 ### Your First Training Run (5 minutes)
 
 ```bash
@@ -197,6 +228,37 @@ For detailed architecture documentation, see [docs/ARCHITECTURE.md](docs/ARCHITE
 ---
 
 ## 📚 Training Guide
+
+### Training Configurations Overview
+
+Baguettotron includes **multiple YAML configurations** for different use cases. All configurations are in the `configs/` directory:
+
+| Configuration | Time | Features | HuggingFace | Use Case |
+|--------------|------|----------|-------------|----------|
+| **`train_321m_smoke_test.yaml`** | ~40s | Basic pipeline | ❌ No | **Daily testing** - Quick verification after code changes |
+| **`train_321m_smoke_test_hf.yaml`** | ~1-2 min | HF integration | ✅ Yes (50 samples) | **Test HF** - Validate HuggingFace dataset loading |
+| **`train_321m_smoke_test_full.yaml`** | ~2-3 min | All features (150+ params) | ✅ Yes (100 samples) | **Pre-production** - Comprehensive validation before long runs |
+| **`train_321m_smoke_test_full_fast.yaml`** | ~40s | All features | ❌ No | **CI/CD** - Fast comprehensive test without HF |
+| **`train_321m_synth.yaml`** | ~40 hours | Production SYNTH | ✅ Yes (200B tokens) | **Production** - Official SYNTH dataset replication |
+| **`train_321m_huggingface_example.yaml`** | Variable | Multi-dataset HF | ✅ Yes (Wikipedia) | **Example** - HuggingFace multi-language training |
+| **`train_321m_rtx3090.yaml`** | Variable | Memory-optimized | Optional | **RTX 3090** - Optimized for 24GB VRAM |
+
+#### Configuration Details
+
+**Smoke Tests** (Fast validation):
+- **`train_321m_smoke_test.yaml`**: Minimal test with 100 local samples, 100 steps. Perfect for quick "does it work?" checks.
+- **`train_321m_smoke_test_hf.yaml`**: Tests HuggingFace integration with 50 Wikipedia articles. First run tokenizes (~1 min), subsequent runs use cache (30s).
+- **`train_321m_smoke_test_full.yaml`**: Tests ALL features (150+ YAML parameters, all optimizers, all schedulers, all precision modes) with 100 Wikipedia articles. Complete pre-production validation.
+- **`train_321m_smoke_test_full_fast.yaml`**: Same as full but without HuggingFace for instant testing.
+
+**Production Configs**:
+- **`train_321m_synth.yaml`**: Official replication config for PleIAs/SYNTH dataset (~200B tokens). Requires 16×H100 or similar hardware. Estimated training time: 40 hours.
+- **`train_321m_huggingface_example.yaml`**: Example multi-language training with Wikipedia EN+FR from HuggingFace Hub.
+- **`train_321m_rtx3090.yaml`**: Memory-optimized configuration for RTX 3090 (24GB VRAM) with gradient checkpointing and smaller batch sizes.
+
+For detailed smoke test documentation, see **[docs/SMOKE_TESTS_GUIDE.md](docs/SMOKE_TESTS_GUIDE.md)**.
+
+For HuggingFace integration guide, see **[docs/HUGGINGFACE_INTEGRATION.md](docs/HUGGINGFACE_INTEGRATION.md)**.
 
 ### Training with Multiple Datasets
 
@@ -481,10 +543,13 @@ Baguettotron-321M/
 │   └── test_generation.py    # Generation utilities tests
 │
 ├── configs/                  # YAML configuration files
-│   ├── train_example.yaml    # Complete training example
-│   ├── quick_train.yaml      # Quick testing
-│   ├── multi_dataset.yaml    # Multi-dataset training
-│   └── rtx3090_safe.yaml     # RTX 3090 optimized config
+│   ├── train_321m_smoke_test.yaml        # Quick smoke test (40s)
+│   ├── train_321m_smoke_test_hf.yaml     # HF integration test (1-2 min)
+│   ├── train_321m_smoke_test_full.yaml   # Full features test (2-3 min)
+│   ├── train_321m_smoke_test_full_fast.yaml  # Fast comprehensive test (40s)
+│   ├── train_321m_synth.yaml             # Production SYNTH training (~40h)
+│   ├── train_321m_huggingface_example.yaml   # HF multi-language example
+│   └── train_321m_rtx3090.yaml           # RTX 3090 optimized config
 │
 ├── docs/                     # Documentation
 │   ├── ARCHITECTURE.md       # Architecture deep dive
@@ -568,13 +633,22 @@ pip install -e ".[all,synth,wikipedia]"
 
 ### Documentation
 
+**Getting Started:**
 - **[QUICKSTART.md](QUICKSTART.md)** - Get started in 5 minutes with 3 ready-to-use scenarios
 - **[docs/INSTALLATION_GUIDE.md](docs/INSTALLATION_GUIDE.md)** - Detailed installation instructions
+- **[docs/SMOKE_TESTS_GUIDE.md](docs/SMOKE_TESTS_GUIDE.md)** - Complete smoke test guide (4 configurations) ⭐ NEW
+
+**Core Documentation:**
 - **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Deep dive into model architecture
 - **[docs/DATASET_GUIDE.md](docs/DATASET_GUIDE.md)** - Complete dataset documentation
+- **[docs/HUGGINGFACE_INTEGRATION.md](docs/HUGGINGFACE_INTEGRATION.md)** - HuggingFace datasets integration ⭐ NEW
 - **[docs/CLI_GUIDE.md](docs/CLI_GUIDE.md)** - CLI usage and examples
-- **[docs/CHAT_MODE_QUICKSTART.md](docs/CHAT_MODE_QUICKSTART.md)** - Quick start guide for chat mode ⭐
+
+**Chat Mode:**
+- **[docs/CHAT_MODE_QUICKSTART.md](docs/CHAT_MODE_QUICKSTART.md)** - Quick start guide for chat mode
 - **[docs/CHAT_TEMPLATE_GUIDE.md](docs/CHAT_TEMPLATE_GUIDE.md)** - Complete chat template documentation
+
+**Reference:**
 - **[docs/INDEX.md](docs/INDEX.md)** - Documentation index
 - **[whitepaper.md](whitepaper.md)** - Technical whitepaper (includes chat template specifications §3.2, Appendix D.3)
 

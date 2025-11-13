@@ -1,0 +1,63 @@
+# Baguettotron-321M Full Smoke Test Configuration - FAST VERSION
+# Same as train_321m_smoke_test_full.yaml but WITHOUT HuggingFace datasets
+# Runs in ~1 minute instead of ~5 minutes
+#
+# Use this for:
+# - Quick verification of ALL features
+# - CI/CD pipelines
+# - Rapid iteration during development
+#
+# Use train_321m_smoke_test_full.yaml when:
+# - Testing HuggingFace integration
+# - Before production training
+
+# Include all configuration from full version
+# See train_321m_smoke_test_full.yaml for complete documentation
+
+model:
+  config: "321m"
+
+data:
+  datasets:
+    - name: "smoke_test_main"
+      weight: 0.6
+      path: "data/smoke_test.json"
+      max_samples: null
+
+    - name: "smoke_test_secondary"
+      weight: 0.4
+      path: "data/smoke_test_valid.json"
+      max_samples: null
+
+  max_length: 1024
+  block_size: 1024
+  shuffle: true
+  num_workers: 4
+
+training:
+  epochs: 1
+  max_steps: 100
+  batch_size: 4
+  gradient_accumulation_steps: 8
+  learning_rate: 1.0e-4
+  lr_scheduler: "cosine"
+  warmup_steps: 20
+  min_lr: 1.0e-6
+  optimizer: "adamw"
+  weight_decay: 0.1
+  max_grad_norm: 1.0
+  mixed_precision: "bf16"
+  logging_steps: 10
+  eval_steps: 50
+  save_steps: 50
+  device: "cuda"
+  grad_checkpointing: true
+
+checkpoint:
+  save_steps: 50
+  save_total_limit: 3
+  output_dir: "outputs/baguettotron_321m_smoke_test_full_fast"
+  save_safetensors: true
+  save_optimizer_states: true
+
+# For complete configuration options, see train_321m_smoke_test_full.yaml

@@ -25,6 +25,7 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 from baguettotron import BaguettotronForCausalLM, BaguettotronConfig
 from baguettotron.data import TextDataset, create_dataloader, DataCollatorForLanguageModeling
 from baguettotron.training import Trainer, create_optimizer, create_scheduler
+from baguettotron.tokenization import load_tokenizer
 
 # Setup logging
 logging.basicConfig(
@@ -235,8 +236,36 @@ def create_model_config(args: argparse.Namespace, yaml_config: Optional[Dict] = 
     if yaml_config and 'model' in yaml_config:
         # Use model config from main YAML file
         model_dict = yaml_config['model']
-        logger.info(f"Using model config from YAML: vocab_size={model_dict.get('vocab_size', 'N/A')}")
-        return BaguettotronConfig.from_dict(model_dict)
+
+        # Check if using a preset config (e.g., "321m")
+        if 'config' in model_dict and isinstance(model_dict['config'], str):
+            preset_name = model_dict['config']
+            logger.info(f"Using preset model config: {preset_name}")
+
+            # Load the preset
+            if preset_name == '321m':
+                base_config = BaguettotronConfig.baguettotron_321m()
+            elif preset_name == 'tiny':
+                base_config = BaguettotronConfig()
+            else:
+                raise ValueError(f"Unknown preset config: {preset_name}")
+
+            # Apply any overrides from YAML
+            overrides = {k: v for k, v in model_dict.items() if k != 'config'}
+            if overrides:
+                logger.info(f"Applying config overrides: {list(overrides.keys())}")
+                # Update base config with overrides
+                for key, value in overrides.items():
+                    if hasattr(base_config, key):
+                        setattr(base_config, key, value)
+                    else:
+                        logger.warning(f"Unknown config parameter: {key}")
+
+            return base_config
+        else:
+            # No preset, use all parameters from YAML
+            logger.info(f"Using custom model config from YAML: vocab_size={model_dict.get('vocab_size', 'N/A')}")
+            return BaguettotronConfig.from_dict(model_dict)
     elif args.model_config == '321m':
         return BaguettotronConfig.baguettotron_321m()
     elif args.model_config == 'tiny':
@@ -353,6 +382,14 @@ def main():
     num_params = model.count_parameters()
     logger.info(f"Model parameters: {num_params / 1e6:.1f}M")
 
+    # Initialize tokenizer (required for HuggingFace dataset loading)
+    logger.info("Loading tokenizer...")
+    tokenizer = load_tokenizer(
+        tokenizer_type="baguettotron",
+        model_vocab_size=model_config.vocab_size
+    )
+    logger.info(f"Tokenizer loaded: vocab_size={tokenizer.vocab_size}")
+
     # Load checkpoint if provided
     if args.checkpoint:
         logger.info(f"Loading checkpoint from {args.checkpoint}")
@@ -373,32 +410,165 @@ def main():
 
     # Check if using multi-dataset mode
     if hasattr(args, 'datasets') and args.datasets:
-        from baguettotron.data.multi_dataset import create_multi_dataset
+        from baguettotron.data.multi_dataset import create_multi_dataset, DatasetConfig
 
-        # Parse weights if provided
-        if hasattr(args, 'dataset_weights') and args.dataset_weights:
-            weights = [float(w.strip()) for w in args.dataset_weights.split(',')]
-        else:
-            weights = None  # Equal weights
+        # Support 3 syntaxes for datasets:
+        # 1. String: "wikipedia,synth" (CLI style)
+        # 2. List of strings: ["wikipedia", "synth"] (simple YAML)
+        # 3. List of dicts: [{name: "wikipedia", path: "...", weight: 1.0}] (full YAML)
 
-        logger.info(f"Multi-dataset mode: {args.datasets}")
-        if weights:
-            logger.info(f"Dataset weights: {weights}")
-
-        # Use the create_multi_dataset helper function
-        try:
-            train_dataset = create_multi_dataset(
-                datasets=args.datasets,
-                weights=weights,
-                data_dir='data',
-                block_size=args.block_size,
-            )
-        except FileNotFoundError as e:
-            logger.error(f"❌ {e}")
-            logger.error(f"\nPrepare missing datasets first:")
+        if isinstance(args.datasets, str):
+            # Syntax 1: String (CLI)
             dataset_names = [d.strip() for d in args.datasets.split(',') if d.strip()]
-            for name in dataset_names:
-                logger.error(f"   ./baguettotron dataset prepare --type {name} --tokenize")
+
+            # Parse weights if provided
+            if hasattr(args, 'dataset_weights') and args.dataset_weights:
+                weights = [float(w.strip()) for w in args.dataset_weights.split(',')]
+            else:
+                weights = None  # Equal weights
+
+            logger.info(f"Multi-dataset mode: {dataset_names}")
+            if weights:
+                logger.info(f"Dataset weights: {weights}")
+
+            # Use the create_multi_dataset helper function
+            try:
+                train_dataset = create_multi_dataset(
+                    datasets=args.datasets,
+                    weights=weights,
+                    data_dir='data',
+                    block_size=args.block_size,
+                )
+            except FileNotFoundError as e:
+                logger.error(f"❌ {e}")
+                logger.error(f"\nPrepare missing datasets first:")
+                for name in dataset_names:
+                    logger.error(f"   ./baguettotron dataset prepare --type {name} --tokenize")
+                sys.exit(1)
+
+        elif isinstance(args.datasets, list):
+            # Check if list of strings or list of dicts
+            if len(args.datasets) > 0 and isinstance(args.datasets[0], dict):
+                # Syntax 3: List of dicts (full YAML with paths and weights)
+                from baguettotron.data import TextDataset
+                from baguettotron.data.huggingface_loader import (
+                    parse_huggingface_config,
+                    load_huggingface_dataset
+                )
+
+                dataset_configs = []
+                for ds_config in args.datasets:
+                    name = ds_config.get('name', 'unnamed')
+                    source = ds_config.get('source', 'local').lower()
+                    weight = ds_config.get('weight', 1.0)
+
+                    # Check if HuggingFace dataset
+                    if source in ['huggingface', 'hf', 'hub']:
+                        # HuggingFace dataset - requires dataset_name
+                        dataset_name = ds_config.get('dataset_name')
+                        if not dataset_name:
+                            logger.error(f"❌ HuggingFace dataset '{name}' missing 'dataset_name' field")
+                            sys.exit(1)
+
+                        dataset_configs.append({
+                            'name': name,
+                            'source': 'huggingface',
+                            'config': ds_config,
+                            'weight': weight
+                        })
+                    else:
+                        # Local file dataset - requires path
+                        path = ds_config.get('path')
+                        if not path:
+                            logger.error(f"❌ Dataset '{name}' missing 'path' field")
+                            sys.exit(1)
+
+                        dataset_configs.append({
+                            'name': name,
+                            'source': 'local',
+                            'path': path,
+                            'weight': weight
+                        })
+
+                logger.info(f"Multi-dataset mode: {[d['name'] for d in dataset_configs]}")
+                logger.info(f"\n✅ Loading {len(dataset_configs)} datasets:")
+                total_weight = sum(d['weight'] for d in dataset_configs)
+                for ds in dataset_configs:
+                    percentage = (ds['weight'] / total_weight) * 100
+                    source_info = f"[{ds['source']}]"
+                    logger.info(f"   - {ds['name']} {source_info}: (weight: {percentage:.2f}%)")
+
+                # Load each dataset and create MultiDataset manually
+                from baguettotron.data.multi_dataset import MultiDataset
+
+                loaded_datasets = []
+                weights = []
+                for ds_config in dataset_configs:
+                    try:
+                        if ds_config['source'] == 'huggingface':
+                            # Load from HuggingFace Hub
+                            hf_config = parse_huggingface_config(ds_config['config'])
+                            if hf_config is None:
+                                logger.error(f"❌ Failed to parse HuggingFace config for '{ds_config['name']}'")
+                                sys.exit(1)
+
+                            logger.info(f"   📥 Loading {ds_config['name']} from HuggingFace...")
+                            dataset = load_huggingface_dataset(
+                                hf_config,
+                                tokenizer,
+                                block_size=args.block_size
+                            )
+                            loaded_datasets.append(dataset)
+                            weights.append(ds_config['weight'])
+                            logger.info(f"   ✅ Loaded {ds_config['name']}: {len(dataset)} examples")
+                        else:
+                            # Load from local file
+                            dataset = TextDataset(ds_config['path'], block_size=args.block_size)
+                            loaded_datasets.append(dataset)
+                            weights.append(ds_config['weight'])
+                            logger.info(f"   ✅ Loaded {ds_config['name']}: {len(dataset)} examples")
+                    except FileNotFoundError:
+                        logger.error(f"❌ Dataset file not found: {ds_config.get('path', 'N/A')}")
+                        sys.exit(1)
+                    except Exception as e:
+                        logger.error(f"❌ Failed to load dataset '{ds_config['name']}': {e}")
+                        sys.exit(1)
+
+                logger.info(f"   Total: {sum(len(d) for d in loaded_datasets)} examples")
+                train_dataset = MultiDataset(loaded_datasets, weights)
+
+            else:
+                # Syntax 2: List of strings (simple YAML)
+                dataset_names = args.datasets
+
+                # Parse weights if provided
+                if hasattr(args, 'dataset_weights') and args.dataset_weights:
+                    if isinstance(args.dataset_weights, str):
+                        weights = [float(w.strip()) for w in args.dataset_weights.split(',')]
+                    else:
+                        weights = args.dataset_weights
+                else:
+                    weights = None
+
+                logger.info(f"Multi-dataset mode: {dataset_names}")
+                if weights:
+                    logger.info(f"Dataset weights: {weights}")
+
+                try:
+                    train_dataset = create_multi_dataset(
+                        datasets=','.join(dataset_names),
+                        weights=weights,
+                        data_dir='data',
+                        block_size=args.block_size,
+                    )
+                except FileNotFoundError as e:
+                    logger.error(f"❌ {e}")
+                    logger.error(f"\nPrepare missing datasets first:")
+                    for name in dataset_names:
+                        logger.error(f"   ./baguettotron dataset prepare --type {name} --tokenize")
+                    sys.exit(1)
+        else:
+            logger.error(f"❌ Invalid datasets format: {type(args.datasets)}")
             sys.exit(1)
     else:
         # Single dataset mode

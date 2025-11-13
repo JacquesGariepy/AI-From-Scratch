@@ -74,15 +74,16 @@ class TransformerBlock(nn.Module):
             num_key_value_heads=config.num_key_value_heads,
             max_position_embeddings=config.max_position_embeddings,
             rope_theta=config.rope_theta,
+            rope_scaling=config.rope_scaling,  # Context extension support
             attention_dropout=config.attention_dropout,
-            bias=False,  # LLaMA-style: no bias
+            bias=config.attention_bias,  # Use config setting (False for official model)
         )
 
         # Feed-forward network (SwiGLU)
         self.feed_forward = SwiGLU(
             hidden_size=config.hidden_size,
             intermediate_size=config.intermediate_size,
-            bias=False,  # LLaMA-style: no bias
+            bias=config.mlp_bias,  # Use config setting (False for official model)
         )
 
     def forward(

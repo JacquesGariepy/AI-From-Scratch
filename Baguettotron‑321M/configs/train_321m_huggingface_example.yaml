@@ -1,0 +1,324 @@
+# Baguettotron-321M HuggingFace Datasets Example
+# Demonstrates loading datasets directly from HuggingFace Hub
+# Mix of Wikipedia and SYNTH datasets with automatic downloading
+
+# ============================================================================
+# MODEL CONFIGURATION
+# ============================================================================
+model:
+  config: "321m"
+  # Official 321M architecture - no overrides
+
+# ============================================================================
+# DATASET CONFIGURATION (HuggingFace Hub)
+# ============================================================================
+data:
+  # Multiple datasets from HuggingFace Hub
+  datasets:
+    # Wikipedia English (from HuggingFace - NEW FORMAT)
+    - name: "wikipedia_en"
+      source: "huggingface"           # or "hf" or "hub"
+      dataset_name: "wikimedia/wikipedia"
+      subset: "20231101.en"           # English Wikipedia (new format)
+      split: "train"
+      weight: 0.7
+      max_samples: 10              # Optional: limit samples for testing
+
+    # Wikipedia French (from HuggingFace - NEW FORMAT)
+    - name: "wikipedia_fr"
+      source: "huggingface"
+      dataset_name: "wikimedia/wikipedia"
+      subset: "20231101.fr"           # French Wikipedia (new format)
+      split: "train"
+      weight: 0.3
+      max_samples: 10              # Optional: limit samples
+
+    # SYNTH Dataset (from HuggingFace)
+    # - name: "synth"
+    #   source: "huggingface"
+    #   dataset_name: "PleIAs/SYNTH"
+    #   split: "train"
+    #   weight: 0.5
+      # max_samples: 50000            # Optional: use subset for testing
+
+  # Context and data loading
+  max_length: 2048
+  shuffle: true
+  num_workers: 4
+
+  # Preprocessing
+  preprocessing:
+    remove_code: false
+    multilingual: true
+    languages: ["fr", "en"]
+
+# ============================================================================
+# TRAINING HYPERPARAMETERS
+# ============================================================================
+training:
+  epochs: 3
+  max_steps: 10000
+
+  # Batch configuration
+  batch_size: 8
+  gradient_accumulation_steps: 16  # Effective batch = 128
+
+  # Learning rate
+  learning_rate: 1.0e-4
+  lr_scheduler: "cosine"
+  warmup_steps: 500
+  min_lr: 1.0e-6
+
+  # Optimization
+  optimizer: "adamw"
+  weight_decay: 0.1
+  max_grad_norm: 1.0
+  adam_beta1: 0.9
+  adam_beta2: 0.95
+  adam_epsilon: 1.0e-8
+
+  # Precision
+  mixed_precision: "bf16"
+
+  # Logging
+  logging_steps: 50
+  eval_steps: 1000
+
+  # Device
+  device: "cuda"
+  num_gpus: 1
+
+# ============================================================================
+# CHECKPOINT MANAGEMENT
+# ============================================================================
+checkpoint:
+  save_steps: 1000
+  save_total_limit: 5
+  output_dir: "outputs/baguettotron_321m_huggingface"
+  save_safetensors: true
+  save_optimizer_states: true
+
+# ============================================================================
+# EVALUATION
+# ============================================================================
+evaluation:
+  # Can also use HuggingFace dataset for evaluation
+  eval_dataset: "data/validation.json"  # or use HuggingFace split
+  eval_batch_size: 4
+  compute_metrics: true
+  evaluate_at_start: true
+  evaluate_at_end: true
+  metrics: ["loss", "perplexity"]
+
+# ============================================================================
+# GENERATION TESTS
+# ============================================================================
+generation:
+  test_prompts:
+    - "Hello world"
+    - "What is artificial intelligence?"
+    - "Bonjour le monde"
+    - "Qu'est-ce que l'intelligence artificielle ?"
+
+  max_new_tokens: 100
+  temperature: 0.7
+  top_k: 50
+  top_p: 0.9
+  do_sample: true
+
+  test_every_n_steps: 1000
+
+# ============================================================================
+# MONITORING
+# ============================================================================
+monitoring:
+  use_tensorboard: true
+  tensorboard_dir: "runs/huggingface_training"
+  use_wandb: false
+
+  log_learning_rate: true
+  log_gradient_norm: true
+  log_parameter_norm: true
+  log_gpu_memory: true
+
+# ============================================================================
+# HARDWARE OPTIMIZATION
+# ============================================================================
+hardware:
+  gradient_checkpointing: true
+  empty_cache_steps: 100
+
+  amp_backend: "native"
+  pin_memory: true
+  persistent_workers: true
+  prefetch_factor: 2
+
+  cudnn_benchmark: true
+  cudnn_deterministic: false
+
+# ============================================================================
+# SPECIAL FEATURES
+# ============================================================================
+special_features:
+  use_chat_template: true
+  enable_thinking_tags: true
+  enable_rag_tags: true
+  languages: ["fr", "en"]
+  language_detection: true
+
+  enable_wikipedia_memorization: true
+  enable_arithmetic_reasoning: true
+  enable_text_editing: true
+  enable_creative_writing: true
+
+  control_tokens: ["→", "↺", "※", "?maybe?", "●", "◐", "○", "⚠", "☐", "☑", "✓"]
+  entropy_tokens: true
+
+# ============================================================================
+# REPRODUCIBILITY
+# ============================================================================
+reproducibility:
+  seed: 42
+  deterministic: false
+  benchmark: true
+
+# ============================================================================
+# HUGGINGFACE DATASETS - USAGE NOTES
+# ============================================================================
+#
+# SUPPORTED DATASET SOURCES:
+#
+# 1. HuggingFace Hub Datasets (source: "huggingface")
+#    - Wikipedia: "wikipedia" with subsets like "20220301.en", "20220301.fr"
+#    - SYNTH: "PleIAs/SYNTH" (official Baguettotron dataset)
+#    - Any other HF dataset that has a "text" field
+#
+# 2. Local File Datasets (source: "local" or omit source)
+#    - JSON lines format
+#    - Must have "text" field
+#
+# 3. Mixed Sources
+#    - Combine HuggingFace and local datasets in same config
+#    - Each dataset gets its own weight for mixing
+#
+# ============================================================================
+# YAML SYNTAX FOR DATASETS
+# ============================================================================
+#
+# Required fields for HuggingFace datasets:
+# - name: Human-readable name
+# - source: "huggingface" (or "hf" or "hub")
+# - dataset_name: HuggingFace dataset ID (e.g., "wikipedia", "PleIAs/SYNTH")
+# - weight: Mixing weight (default: 1.0)
+#
+# Optional fields:
+# - subset: Dataset subset/config (e.g., "20220301.en")
+# - split: Which split to use (default: "train")
+# - max_samples: Limit number of samples (useful for testing)
+# - cache_dir: Custom cache directory (default: ~/.cache/baguettotron/datasets)
+#
+# Required fields for local datasets:
+# - name: Human-readable name
+# - path: Path to JSON file
+# - weight: Mixing weight (default: 1.0)
+#
+# ============================================================================
+# EXAMPLES
+# ============================================================================
+#
+# Example 1: Wikipedia only (English)
+# data:
+#   datasets:
+#     - name: "wikipedia"
+#       source: "huggingface"
+#       dataset_name: "wikipedia"
+#       subset: "20220301.en"
+#       weight: 1.0
+#
+# Example 2: SYNTH only (full dataset)
+# data:
+#   datasets:
+#     - name: "synth"
+#       source: "huggingface"
+#       dataset_name: "PleIAs/SYNTH"
+#       weight: 1.0
+#
+# Example 3: SYNTH subset (10k samples for testing)
+# data:
+#   datasets:
+#     - name: "synth_test"
+#       source: "huggingface"
+#       dataset_name: "PleIAs/SYNTH"
+#       max_samples: 10000
+#       weight: 1.0
+#
+# Example 4: Mix HuggingFace and local
+# data:
+#   datasets:
+#     - name: "wikipedia"
+#       source: "huggingface"
+#       dataset_name: "wikipedia"
+#       subset: "20220301.en"
+#       weight: 0.5
+#     - name: "custom_data"
+#       path: "data/my_custom_dataset.json"
+#       weight: 0.5
+#
+# ============================================================================
+# CACHING BEHAVIOR
+# ============================================================================
+#
+# HuggingFace datasets are automatically cached to avoid re-downloading:
+# - First time: Downloads from HuggingFace Hub (can take minutes/hours)
+# - Subsequent runs: Loads from cache (instant)
+# - Cache location: ~/.cache/baguettotron/datasets/
+#
+# To force re-download, delete the cache directory:
+# rm -rf ~/.cache/baguettotron/datasets/
+#
+# ============================================================================
+# DATASET SIZES
+# ============================================================================
+#
+# Approximate download sizes:
+# - Wikipedia Simple English: ~500 MB
+# - Wikipedia English (20220301.en): ~20 GB
+# - Wikipedia French (20220301.fr): ~6 GB
+# - SYNTH (full dataset): ~500 GB (200B tokens)
+#
+# Recommendation for testing:
+# - Use max_samples parameter to limit dataset size
+# - Start with 10k-100k samples for quick tests
+# - Scale to full dataset once everything works
+#
+# ============================================================================
+# PERFORMANCE TIPS
+# ============================================================================
+#
+# 1. Use max_samples for initial testing
+# 2. Download datasets once, then reuse cache
+# 3. Mix datasets with appropriate weights
+# 4. Monitor memory usage (Wikipedia is large!)
+# 5. Use gradient_checkpointing for memory efficiency
+#
+# ============================================================================
+# TROUBLESHOOTING
+# ============================================================================
+#
+# Issue: "Dataset not found"
+# - Check internet connection
+# - Verify dataset name on HuggingFace Hub
+# - Check if subset name is correct
+#
+# Issue: "Out of memory"
+# - Reduce batch_size
+# - Enable gradient_checkpointing
+# - Use max_samples to limit dataset size
+# - Reduce max_length
+#
+# Issue: "Download too slow"
+# - First download takes time (gigabytes)
+# - Use max_samples to test with subset first
+# - Download once, cache is reused forever
+#
+# ============================================================================
