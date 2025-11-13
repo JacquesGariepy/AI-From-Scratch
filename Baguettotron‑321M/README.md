@@ -17,7 +17,7 @@ Learn how to implement, train, and deploy a modern large language model (LLM) wi
 
 ## 🎯 Overview
 
-Baguettotron-321M is designed to help students, researchers, and ML engineers understand how modern language models work by providing:
+This Baguettotron-321M-like is designed to help students, researchers, and ML engineers understand how modern language models work by providing:
 
 - **Clean, readable code** with extensive documentation and type hints
 - **Production-ready architecture** using state-of-the-art techniques (GQA, SwiGLU, RoPE)
@@ -32,7 +32,7 @@ Whether you're learning about transformers for the first time or implementing yo
 ## ✨ Key Features
 
 ### 🏗️ Modern Architecture
-- **320.96M parameters** - GPT-style causal language model
+- **320.96M parameters** - Qwen/Llama-like causal language model
 - **80 deep layers** - "Baguette" architecture optimized for reasoning tasks
 - **Grouped-Query Attention (GQA)** - 9 query heads, 3 KV heads for efficiency
 - **SwiGLU MLP** - State-of-the-art activation function (gate_proj, up_proj, down_proj)
