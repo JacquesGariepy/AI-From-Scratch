@@ -1,18 +1,18 @@
 # Chat Template Guide
 
-Ce guide explique comment utiliser le chat template (`chat_template.json`) avec Baguettotron-321M pour des conversations formatées en style ChatML.
+This guide explains how to use the chat template (`chat_template.json`) with Baguettotron-321M for conversations formatted in ChatML style.
 
-## Vue d'ensemble
+## Overview
 
-Le chat template permet de formater automatiquement les conversations entre l'utilisateur et l'assistant en utilisant le format **ChatML** (Chat Markup Language) avec les tokens spéciaux :
+The chat template allows automatic formatting of conversations between the user and assistant using the **ChatML** (Chat Markup Language) format with special tokens:
 
-- `<|im_start|>` : Début d'un message
-- `<|im_end|>` : Fin d'un message
-- `<think>` : Tag spécial pour le mode raisonnement
+- `<|im_start|>` : Start of a message
+- `<|im_end|>` : End of a message
+- `<think>` : Special tag for reasoning mode
 
-## Fichier chat_template.json
+## chat_template.json File
 
-Le fichier se trouve dans `assets/chat_template.json` :
+The file is located in `assets/chat_template.json`:
 
 ```json
 {
@@ -28,40 +28,40 @@ Le fichier se trouve dans `assets/chat_template.json` :
 }
 ```
 
-## Utilisation en ligne de commande
+## Command-Line Usage
 
-### Mode chat simple
+### Simple Chat Mode
 
 ```bash
 ./baguettotron generate \
   --checkpoint outputs/ckpt_10000/model.pt \
   --chat-mode \
-  --prompt "Qu'est-ce que l'intelligence artificielle ?" \
+  --prompt "What is artificial intelligence?" \
   --max-new-tokens 200
 ```
 
-### Mode chat avec prompt système
+### Chat Mode with System Prompt
 
 ```bash
 ./baguettotron generate \
   --checkpoint outputs/ckpt_10000/model.pt \
   --chat-mode \
-  --system-prompt "Tu es un assistant IA qui répond en français." \
-  --prompt "Explique-moi les transformers." \
+  --system-prompt "You are an AI assistant who responds in French." \
+  --prompt "Explain transformers to me." \
   --max-new-tokens 300
 ```
 
-### Mode interactif avec chat
+### Interactive Chat Mode
 
 ```bash
 ./baguettotron generate \
   --checkpoint outputs/ckpt_10000/model.pt \
   --chat-mode \
   --interactive \
-  --system-prompt "Tu es un assistant serviable et amical."
+  --system-prompt "You are a helpful and friendly assistant."
 ```
 
-**Exemple de session interactive :**
+**Example Interactive Session:**
 
 ```
 ================================================================================
@@ -69,64 +69,64 @@ Baguettotron Chat Mode - Interactive Conversation
 ================================================================================
 Tokenizer: TokenizerWrapper(type=baguettotron, vocab_size=65491, model_vocab_size=65536, with chat template)
 Chat mode: Enabled (using ChatML format)
-System prompt: Tu es un assistant serviable et amical.
+System prompt: You are a helpful and friendly assistant.
 Enter your prompts (press Ctrl+C or type 'quit' to exit)
 ================================================================================
 
-> You: Bonjour !
+> You: Hello!
 
 > Assistant:
 --------------------------------------------------------------------------------
-Bonjour ! Comment puis-je vous aider aujourd'hui ?
+Hello! How can I help you today?
 --------------------------------------------------------------------------------
 
-> You: Parle-moi des transformers en IA
+> You: Tell me about transformers in AI
 
 > Assistant:
 --------------------------------------------------------------------------------
-Les transformers sont une architecture de réseau de neurones...
+Transformers are a neural network architecture...
 --------------------------------------------------------------------------------
 ```
 
-### Utiliser un chemin personnalisé pour le template
+### Using a Custom Template Path
 
 ```bash
 ./baguettotron generate \
   --checkpoint outputs/model.pt \
   --chat-mode \
-  --chat-template /chemin/vers/mon_chat_template.json \
+  --chat-template /path/to/my_chat_template.json \
   --interactive
 ```
 
-## Utilisation en Python
+## Python Usage
 
-### Exemple simple
+### Simple Example
 
 ```python
 from baguettotron import BaguettotronForCausalLM, BaguettotronConfig
 from baguettotron.tokenization import load_tokenizer
 import torch
 
-# Charger le modèle
+# Load model
 config = BaguettotronConfig.baguettotron_321m()
 model = BaguettotronForCausalLM(config)
 model.load_state_dict(torch.load('outputs/ckpt_10000/model.pt'))
 model.eval()
 
-# Charger le tokenizer avec chat template
+# Load tokenizer with chat template
 tokenizer = load_tokenizer(
     tokenizer_type="auto",
     model_vocab_size=config.vocab_size,
     chat_template_path="assets/chat_template.json"
 )
 
-# Créer une conversation
+# Create a conversation
 messages = [
-    {"role": "system", "content": "Tu es un assistant IA."},
-    {"role": "user", "content": "Qu'est-ce que l'IA ?"}
+    {"role": "system", "content": "You are an AI assistant."},
+    {"role": "user", "content": "What is AI?"}
 ]
 
-# Appliquer le chat template et tokenizer
+# Apply chat template and tokenize
 input_ids = tokenizer.apply_chat_template(
     messages,
     add_generation_prompt=True,
@@ -134,7 +134,7 @@ input_ids = tokenizer.apply_chat_template(
     return_tensors="pt"
 )
 
-# Générer la réponse
+# Generate response
 with torch.no_grad():
     output_ids = model.generate(
         input_ids,
@@ -143,27 +143,27 @@ with torch.no_grad():
         do_sample=True
     )
 
-# Décoder
+# Decode
 response = tokenizer.decode(output_ids[0], skip_special_tokens=True)
 print(response)
 ```
 
-### Conversation multi-tours
+### Multi-Turn Conversation
 
 ```python
 from baguettotron.tokenization import load_tokenizer
 
 tokenizer = load_tokenizer("auto", chat_template_path="assets/chat_template.json")
 
-# Conversation avec historique
+# Conversation with history
 conversation = [
-    {"role": "system", "content": "Tu es un expert en Python."},
-    {"role": "user", "content": "Comment créer une liste ?"},
-    {"role": "assistant", "content": "En Python, utilisez : ma_liste = [1, 2, 3]"},
-    {"role": "user", "content": "Et comment ajouter un élément ?"}
+    {"role": "system", "content": "You are a Python expert."},
+    {"role": "user", "content": "How do I create a list?"},
+    {"role": "assistant", "content": "In Python, use: my_list = [1, 2, 3]"},
+    {"role": "user", "content": "And how do I add an element?"}
 ]
 
-# Formater la conversation complète
+# Format complete conversation
 formatted_text = tokenizer.apply_chat_template(
     conversation,
     add_generation_prompt=True,
@@ -173,67 +173,67 @@ formatted_text = tokenizer.apply_chat_template(
 print(formatted_text)
 ```
 
-**Sortie :**
+**Output:**
 
 ```
 <|im_start|>system
-Tu es un expert en Python.<|im_end|>
+You are a Python expert.<|im_end|>
 <|im_start|>user
-Comment créer une liste ?<|im_end|>
+How do I create a list?<|im_end|>
 <|im_start|>assistant
-En Python, utilisez : ma_liste = [1, 2, 3]<|im_end|>
+In Python, use: my_list = [1, 2, 3]<|im_end|>
 <|im_start|>user
-Et comment ajouter un élément ?<|im_end|>
+And how do I add an element?<|im_end|>
 <|im_start|>assistant
 <think>
 ```
 
-## Format ChatML
+## ChatML Format
 
-Le format ChatML structure les conversations de cette manière :
+ChatML structures conversations this way:
 
 ```
 <|im_start|>system
-[Prompt système optionnel]<|im_end|>
+[Optional system prompt]<|im_end|>
 <|im_start|>user
-[Message de l'utilisateur]<|im_end|>
+[User message]<|im_end|>
 <|im_start|>assistant
 <think>
-[Réponse générée par le modèle]
+[Generated response by model]
 ```
 
-### Rôles supportés
+### Supported Roles
 
-- **system** : Instructions système pour configurer le comportement du modèle
-- **user** : Messages de l'utilisateur
-- **assistant** : Réponses du modèle
+- **system**: System instructions to configure model behavior
+- **user**: User messages
+- **assistant**: Model responses
 
-### Token spéciaux
+### Special Tokens
 
-- `<|im_start|>` : Marque le début d'un message avec un rôle
-- `<|im_end|>` : Marque la fin d'un message
-- `<think>` : Indique que le modèle doit raisonner avant de répondre
+- `<|im_start|>`: Marks the beginning of a message with a role
+- `<|im_end|>`: Marks the end of a message
+- `<think>`: Indicates the model should reason before responding
 
-## Mode fallback
+## Fallback Mode
 
-Si le fichier `chat_template.json` n'est pas trouvé, le tokenizer utilise automatiquement un format simple :
+If the `chat_template.json` file is not found, the tokenizer automatically uses a simple format:
 
 ```
 user: [message]
-assistant: [réponse]
+assistant: [response]
 ```
 
-Cela permet une compatibilité totale même sans le template.
+This allows full compatibility even without the template.
 
 ## Tests
 
-Pour tester l'intégration du chat template :
+To test chat template integration:
 
 ```bash
-# Tests unitaires
+# Unit tests
 python tests/test_chat_template.py
 
-# Test manuel avec script generate.py
+# Manual test with generate.py script
 python scripts/generate.py \
   --checkpoint outputs/model.pt \
   --chat-mode \
@@ -241,42 +241,42 @@ python scripts/generate.py \
   --max-new-tokens 50
 ```
 
-## Avantages du Chat Template
+## Advantages of Chat Template
 
-1. **Format standardisé** : Compatible avec d'autres modèles de chat (GPT, Claude, etc.)
-2. **Contexte clair** : Les rôles sont explicites pour le modèle
-3. **Raisonnement** : Le tag `<think>` encourage le modèle à réfléchir
-4. **Conversations multi-tours** : Maintient l'historique correctement formaté
-5. **Flexibilité** : Supporte les prompts système pour personnaliser le comportement
+1. **Standardized Format**: Compatible with other chat models (GPT, Claude, etc.)
+2. **Clear Context**: Roles are explicit for the model
+3. **Reasoning**: The `<think>` tag encourages the model to reflect
+4. **Multi-Turn Conversations**: Maintains history correctly formatted
+5. **Flexibility**: Supports system prompts to customize behavior
 
-## Dépannage
+## Troubleshooting
 
 ### "No chat template found"
 
-Le tokenizer cherche `chat_template.json` dans ces emplacements (dans l'ordre) :
+The tokenizer searches for `chat_template.json` in these locations (in order):
 
-1. Chemin spécifié via `--chat-template`
+1. Path specified via `--chat-template`
 2. `Baguettotron-321M/assets/chat_template.json`
 3. `./assets/chat_template.json`
 4. `./chat_template.json`
 
-Assurez-vous que le fichier existe dans l'un de ces emplacements.
+Make sure the file exists in one of these locations.
 
 ### "Using simple formatting"
 
-Si vous voyez ce message, le mode fallback est activé. Le chat fonctionnera toujours, mais sans le format ChatML complet.
+If you see this message, fallback mode is active. Chat will still work, but without full ChatML format.
 
-### Tokens inconnus
+### Unknown Tokens
 
-Si le modèle génère `<|im_start|>` ou `<|im_end|>` dans sa sortie, ces tokens peuvent ne pas être dans le vocabulaire. C'est normal - ils sont utilisés uniquement pour le formatage de l'entrée.
+If the model generates `<|im_start|>` or `<|im_end|>` in its output, these tokens may not be in the vocabulary. This is normal - they are used only for input formatting.
 
-## Exemple complet
+## Complete Example
 
-Voici un exemple complet d'utilisation du chat template :
+Here is a complete example using the chat template:
 
 ```python
 #!/usr/bin/env python3
-"""Exemple d'utilisation du chat template."""
+"""Example chat template usage."""
 
 import sys
 from pathlib import Path
@@ -291,25 +291,25 @@ from baguettotron.tokenization import load_tokenizer
 checkpoint_path = "outputs/ckpt_10000/model.pt"
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-# Charger le modèle
-print("Chargement du modèle...")
+# Load model
+print("Loading model...")
 config = BaguettotronConfig.baguettotron_321m()
 model = BaguettotronForCausalLM(config)
 model.load_state_dict(torch.load(checkpoint_path, map_location=device))
 model = model.to(device)
 model.eval()
 
-# Charger le tokenizer avec chat template
-print("Chargement du tokenizer...")
+# Load tokenizer with chat template
+print("Loading tokenizer...")
 tokenizer = load_tokenizer(
     tokenizer_type="auto",
     model_vocab_size=config.vocab_size,
 )
 
-# Créer une conversation
+# Create a conversation
 conversation = [
-    {"role": "system", "content": "Tu es un assistant IA expert en programmation."},
-    {"role": "user", "content": "Qu'est-ce qu'un transformer en deep learning ?"}
+    {"role": "system", "content": "You are an AI expert in programming."},
+    {"role": "user", "content": "What is a transformer in deep learning?"}
 ]
 
 print("\n" + "="*80)
@@ -318,7 +318,7 @@ print("="*80)
 for msg in conversation:
     print(f"{msg['role'].upper()}: {msg['content']}")
 
-# Appliquer le template et générer
+# Apply template and generate
 input_ids = tokenizer.apply_chat_template(
     conversation,
     add_generation_prompt=True,
@@ -327,9 +327,9 @@ input_ids = tokenizer.apply_chat_template(
 ).to(device)
 
 print("\n" + "="*80)
-print("GÉNÉRATION")
+print("GENERATION")
 print("="*80)
-print(f"Tokens d'entrée: {input_ids.shape[1]}")
+print(f"Input tokens: {input_ids.shape[1]}")
 
 with torch.no_grad():
     output_ids = model.generate(
@@ -344,17 +344,17 @@ with torch.no_grad():
 response = tokenizer.decode(output_ids[0], skip_special_tokens=True)
 
 print("\n" + "="*80)
-print("RÉPONSE")
+print("RESPONSE")
 print("="*80)
 print(response)
 ```
 
-## Références
+## References
 
-- Format ChatML : Utilisé par OpenAI, Anthropic, et d'autres
-- Hugging Face Chat Templates : https://huggingface.co/docs/transformers/chat_templating
-- Baguettotron officiel : https://huggingface.co/PleIAs/Baguettotron
+- ChatML Format: Used by OpenAI, Anthropic, and others
+- Hugging Face Chat Templates: https://huggingface.co/docs/transformers/chat_templating
+- Official Baguettotron: https://huggingface.co/PleIAs/Baguettotron
 
 ---
 
-**Note** : Ce guide fait partie de l'implémentation éducative de Baguettotron-321M. Pour le modèle officiel, consultez la documentation de PleIAs.
+**Note**: This guide is part of the educational implementation of Baguettotron-321M. For the official model, consult PleIAs documentation.

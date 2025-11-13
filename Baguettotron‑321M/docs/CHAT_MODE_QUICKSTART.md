@@ -1,23 +1,23 @@
 # Chat Mode - Quick Start
 
-Guide rapide pour utiliser le mode chat avec Baguettotron-321M.
+Quick guide for using chat mode with Baguettotron-321M.
 
-## 🚀 Utilisation basique
+## 🚀 Basic Usage
 
-### Mode chat simple
+### Simple Chat Mode
 
 ```bash
 ./baguettotron generate \
   --checkpoint outputs/tiny_correct/ckpt_50/model.pt \
   --chat-mode \
-  --prompt "Bonjour !" \
+  --prompt "Hello!" \
   --max-length 100 \
   --config tiny
 ```
 
-**Résultat :** Le prompt est automatiquement formaté en ChatML avant génération.
+**Result:** The prompt is automatically formatted in ChatML before generation.
 
-### Mode interactif (Recommandé)
+### Interactive Mode (Recommended)
 
 ```bash
 ./baguettotron generate \
@@ -25,48 +25,48 @@ Guide rapide pour utiliser le mode chat avec Baguettotron-321M.
   --chat-mode \
   --interactive \
   --config tiny \
-  --system-prompt "Tu es un assistant IA expert."
+  --system-prompt "You are an expert AI assistant."
 ```
 
-**Interface interactive :**
+**Interactive Interface:**
 ```
-> You: Bonjour !
-> Assistant: [réponse générée]
+> You: Hello!
+> Assistant: [generated response]
 
-> You: Comment vas-tu ?
-> Assistant: [réponse générée]
+> You: How are you?
+> Assistant: [generated response]
 
 > You: quit
 Goodbye!
 ```
 
-## 🎛️ Options disponibles
+## 🎛️ Available Options
 
-| Option | Description | Exemple |
+| Option | Description | Example |
 |--------|-------------|---------|
-| `--chat-mode` | Active le mode conversation | Obligatoire pour chat |
-| `--interactive` | Mode interactif | Conversations en temps réel |
-| `--system-prompt` | Configure le comportement | "Tu es un expert..." |
-| `--chat-template` | Chemin vers template personnalisé | `assets/chat_template.json` |
-| `--tokenizer` | Type de tokenizer | `auto`, `baguettotron`, `gpt2` |
-| `--temperature` | Contrôle la créativité | `0.8` (défaut: 1.0) |
+| `--chat-mode` | Enable conversation mode | Required for chat |
+| `--interactive` | Interactive mode | Real-time conversations |
+| `--system-prompt` | Configure behavior | "You are an expert..." |
+| `--chat-template` | Path to custom template | `assets/chat_template.json` |
+| `--tokenizer` | Tokenizer type | `auto`, `baguettotron`, `gpt2` |
+| `--temperature` | Control creativity | `0.8` (default: 1.0) |
 | `--top-k` | Top-k sampling | `50` |
 | `--top-p` | Nucleus sampling | `0.9` |
-| `--max-length` | Tokens max à générer | `100` |
+| `--max-length` | Max tokens to generate | `100` |
 
-## 📝 Exemples pratiques
+## 📝 Practical Examples
 
-### Assistant en français
+### French Assistant
 
 ```bash
 ./baguettotron generate \
   --checkpoint outputs/model.pt \
   --chat-mode \
   --interactive \
-  --system-prompt "Tu réponds uniquement en français, de manière claire et concise."
+  --system-prompt "You answer only in French, clearly and concisely."
 ```
 
-### Mode créatif (température élevée)
+### Creative Mode (High Temperature)
 
 ```bash
 ./baguettotron generate \
@@ -75,10 +75,10 @@ Goodbye!
   --interactive \
   --temperature 1.2 \
   --top-p 0.95 \
-  --system-prompt "Tu es un écrivain créatif."
+  --system-prompt "You are a creative writer."
 ```
 
-### Mode précis (température basse)
+### Precise Mode (Low Temperature)
 
 ```bash
 ./baguettotron generate \
@@ -86,40 +86,40 @@ Goodbye!
   --chat-mode \
   --interactive \
   --temperature 0.5 \
-  --system-prompt "Tu es un assistant technique précis."
+  --system-prompt "You are a precise technical assistant."
 ```
 
-### Sans mode interactif (une seule question)
+### Non-Interactive (Single Question)
 
 ```bash
 ./baguettotron generate \
   --checkpoint outputs/model.pt \
   --chat-mode \
-  --prompt "Explique-moi les transformers" \
+  --prompt "Explain transformers to me" \
   --max-length 200 \
-  --system-prompt "Tu es un expert en IA."
+  --system-prompt "You are an AI expert."
 ```
 
-## 🔍 Vérification du chat template
+## 🔍 Chat Template Verification
 
-Pour vérifier que le chat template est chargé :
+To verify that the chat template is loaded:
 
 ```bash
-# Le tokenizer doit afficher "with chat template"
+# The tokenizer should display "with chat template"
 ./baguettotron generate --checkpoint outputs/model.pt --chat-mode --interactive
 
-# Vous devriez voir :
+# You should see:
 # Tokenizer: TokenizerWrapper(..., with chat template)
 ```
 
-## 🐍 Utilisation Python
+## 🐍 Python Usage
 
 ```python
 from baguettotron import BaguettotronForCausalLM, BaguettotronConfig
 from baguettotron.tokenization import load_tokenizer
 import torch
 
-# Charger modèle et tokenizer
+# Load model and tokenizer
 config = BaguettotronConfig.tiny()
 model = BaguettotronForCausalLM(config)
 model.load_state_dict(torch.load('outputs/model.pt'))
@@ -129,11 +129,11 @@ tokenizer = load_tokenizer("auto", model_vocab_size=config.vocab_size)
 
 # Conversation
 messages = [
-    {"role": "system", "content": "Tu es un assistant IA."},
-    {"role": "user", "content": "Bonjour !"}
+    {"role": "system", "content": "You are an AI assistant."},
+    {"role": "user", "content": "Hello!"}
 ]
 
-# Générer
+# Generate
 input_ids = tokenizer.apply_chat_template(
     messages,
     add_generation_prompt=True,
@@ -146,11 +146,11 @@ response = tokenizer.decode(output[0], skip_special_tokens=True)
 print(response)
 ```
 
-## ❓ Dépannage
+## ❓ Troubleshooting
 
 ### "No chat template found"
 
-**Solution :** Le fichier `assets/chat_template.json` est manquant. Vérifiez qu'il existe.
+**Solution:** The file `assets/chat_template.json` is missing. Check that it exists.
 
 ```bash
 ls -la assets/chat_template.json
@@ -158,38 +158,38 @@ ls -la assets/chat_template.json
 
 ### "Using simple formatting"
 
-**Solution :** Le mode fallback est activé. Le chat fonctionnera mais sans format ChatML complet.
+**Solution:** Fallback mode is active. Chat will work but without full ChatML format.
 
-### Génération chaotique
+### Chaotic Generation
 
-**Causes possibles :**
-1. Modèle trop petit (< 100M paramètres)
-2. Pas assez d'entraînement
-3. Température trop élevée
+**Possible Causes:**
+1. Model too small (< 100M parameters)
+2. Not enough training
+3. Temperature too high
 
-**Solutions :**
-- Utilisez un modèle plus grand
-- Réduisez la température : `--temperature 0.7`
-- Utilisez `--greedy` pour génération déterministe
+**Solutions:**
+- Use a larger model
+- Reduce temperature: `--temperature 0.7`
+- Use `--greedy` for deterministic generation
 
-### Mode interactif ne répond pas
+### Interactive Mode Not Responding
 
-**Solution :** Assurez-vous que le modèle est chargé correctement. Vérifiez le chemin du checkpoint.
+**Solution:** Make sure the model is loaded correctly. Check the checkpoint path.
 
-## 📊 Comparaison des modes
+## 📊 Mode Comparison
 
-| Mode | Commande | Usage |
+| Mode | Command | Usage |
 |------|----------|-------|
-| **Simple** | `--chat-mode --prompt "..."` | Une seule question |
-| **Interactif** | `--chat-mode --interactive` | Conversations multiples |
-| **Non-chat** | Sans `--chat-mode` | Génération de texte standard |
+| **Simple** | `--chat-mode --prompt "..."` | Single question |
+| **Interactive** | `--chat-mode --interactive` | Multiple conversations |
+| **Non-chat** | Without `--chat-mode` | Standard text generation |
 
-## 🎯 Commandes recommandées
+## 🎯 Recommended Commands
 
-### Pour développement/test
+### For Development/Testing
 
 ```bash
-# Modèle tiny, génération rapide
+# Tiny model, fast generation
 ./baguettotron generate \
   --checkpoint outputs/tiny_correct/ckpt_50/model.pt \
   --chat-mode \
@@ -198,10 +198,10 @@ ls -la assets/chat_template.json
   --max-length 50
 ```
 
-### Pour production
+### For Production
 
 ```bash
-# Modèle 321M, qualité maximale
+# 321M model, maximum quality
 ./baguettotron generate \
   --checkpoint outputs/ckpt_10000/model.pt \
   --chat-mode \
@@ -210,22 +210,22 @@ ls -la assets/chat_template.json
   --temperature 0.8 \
   --top-k 50 \
   --top-p 0.9 \
-  --system-prompt "Tu es un assistant IA expert et bienveillant."
+  --system-prompt "You are an expert and helpful AI assistant."
 ```
 
-## 📚 Ressources
+## 📚 Resources
 
-- **Guide complet** : `docs/CHAT_TEMPLATE_GUIDE.md`
-- **Tests** : `tests/test_chat_template.py`
-- **Intégration** : `docs/CHAT_TEMPLATE_INTEGRATION.md`
-- **Template** : `assets/chat_template.json`
+- **Complete Guide**: `docs/CHAT_TEMPLATE_GUIDE.md`
+- **Tests**: `tests/test_chat_template.py`
+- **Integration**: `docs/CHAT_TEMPLATE_INTEGRATION.md`
+- **Template**: `assets/chat_template.json`
 
-## 🎉 Prêt à discuter !
+## 🎉 Ready to Chat!
 
-Votre Baguettotron est maintenant configuré pour des conversations intelligentes en mode ChatML !
+Your Baguettotron is now configured for intelligent conversations in ChatML mode!
 
 ```bash
-# Lancez votre première conversation
+# Start your first conversation
 ./baguettotron generate \
   --checkpoint outputs/model.pt \
   --chat-mode \
@@ -234,4 +234,4 @@ Votre Baguettotron est maintenant configuré pour des conversations intelligente
 
 ---
 
-**Note** : Les exemples utilisent des chemins relatifs. Ajustez selon votre structure de projet.
+**Note**: Examples use relative paths. Adjust according to your project structure.

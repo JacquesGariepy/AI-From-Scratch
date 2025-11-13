@@ -1,0 +1,168 @@
+# Baguettotron-321M Training Configuration for RTX 3090 (24GB VRAM)
+# Optimized for maximum performance on a single RTX 3090 GPU
+
+# Model Configuration
+model:
+  config: "321m"  # Full 321M parameter model
+  vocab_size: 65536
+  hidden_size: 576
+  num_hidden_layers: 80
+  num_attention_heads: 9
+  num_key_value_heads: 3
+  intermediate_size: 1536
+  max_position_embeddings: 4096
+  rope_theta: 10000.0
+  rope_scaling: null  # null = no scaling, or use:
+    # type: "dynamic"
+    # factor: 2.0
+    # original_max_position_embeddings: 4096
+  rms_norm_eps: 1.0e-05
+  attention_dropout: 0.0
+  hidden_dropout: 0.0
+  tie_word_embeddings: true
+
+# Training Configuration - Optimized for RTX 3090
+training:
+  # Dataset
+  train_data: "data/train_tokens.json"  # Or use --datasets auto
+
+  # Batch Size - Optimized for 24GB VRAM
+  batch_size: 32  # Per GPU batch size (adjust based on sequence length)
+  gradient_accumulation_steps: 4  # Effective batch = 32 * 4 = 128
+  max_seq_length: 1024  # Reduce if OOM, increase if memory allows
+
+  # Training Duration
+  num_epochs: 100
+  max_steps: 500000  # Override epochs if specified
+
+  # Learning Rate
+  learning_rate: 3.0e-4  # AdamW learning rate
+  warmup_steps: 2000
+  lr_scheduler: "cosine"  # cosine, linear, or constant
+  min_lr_ratio: 0.1  # Minimum LR = learning_rate * min_lr_ratio
+
+  # Optimizer
+  optimizer: "adamw"
+  weight_decay: 0.1
+  adam_beta1: 0.9
+  adam_beta2: 0.95
+  adam_epsilon: 1.0e-08
+  max_grad_norm: 1.0  # Gradient clipping
+
+  # Mixed Precision - BF16 recommended for RTX 3090
+  mixed_precision: "bf16"  # bf16, fp16, or null (fp32)
+  # Note: RTX 3090 supports BF16 via TF32, use fp16 if bf16 issues
+
+  # Memory Optimization
+  gradient_checkpointing: true  # Saves memory at cost of ~20% speed
+  use_flash_attention: false  # Enable if installed (pip install flash-attn)
+
+  # Compilation (PyTorch 2.0+)
+  compile: true  # torch.compile for 20-30% speedup
+  compile_mode: "default"  # default, reduce-overhead, max-autotune
+
+# Checkpointing
+checkpointing:
+  output_dir: "outputs/rtx3090_321m"
+  save_steps: 5000  # Save every 5K steps
+  save_total_limit: 3  # Keep only 3 most recent checkpoints
+  resume_from_checkpoint: null  # Path to resume from, or null
+
+# Logging
+logging:
+  log_level: "info"
+  log_steps: 100  # Log every 100 steps
+  eval_steps: 1000  # Evaluate every 1000 steps (if eval data provided)
+
+  # WandB Integration (optional)
+  use_wandb: false  # Set to true to enable
+  wandb_project: "baguettotron-321m"
+  wandb_entity: null  # Your wandb username/team
+  wandb_run_name: "rtx3090-321m"
+
+  # TensorBoard
+  use_tensorboard: true
+  tensorboard_dir: "runs/rtx3090_321m"
+
+# Evaluation (optional)
+evaluation:
+  eval_data: null  # Path to validation data, or null
+  eval_batch_size: 16
+  eval_accumulation_steps: 1
+
+# Hardware Configuration
+hardware:
+  device: "cuda"  # cuda, cpu, or mps (Mac)
+  num_workers: 4  # DataLoader workers
+  pin_memory: true
+
+  # Multi-GPU (if you have multiple GPUs)
+  distributed: false  # Set to true for multi-GPU
+  world_size: 1
+  local_rank: 0
+
+# Data Loading
+data:
+  shuffle: true
+  drop_last: true  # Drop incomplete batches
+  prefetch_factor: 2
+  persistent_workers: true
+
+# Seed for Reproducibility
+seed: 42
+
+# RTX 3090 Specific Optimizations
+performance:
+  # TF32 Precision (RTX 30 series feature)
+  allow_tf32: true  # Enables TF32 for matmul operations (3x faster)
+  cudnn_benchmark: true  # Auto-tune cuDNN for optimal performance
+
+  # Memory Management
+  empty_cache_steps: 100  # Clear CUDA cache every N steps to prevent fragmentation
+  max_split_size_mb: 512  # PyTorch memory allocator split size
+
+# Advanced Settings
+advanced:
+  # Sequence Packing (requires special dataset format)
+  use_packing: false
+
+  # Sample Packing Factor
+  packing_factor: 1.0
+
+  # Attention Implementation
+  attn_implementation: "sdpa"  # sdpa (scaled_dot_product_attention), eager, or flash_attention_2
+
+  # Tokenizer Settings
+  tokenizer_type: "auto"  # auto, baguettotron, gpt2, char
+
+# Recommendations for RTX 3090
+# ================================
+#
+# Memory Usage Estimates:
+# - batch_size=32, seq_len=1024, bf16, grad_ckpt=true:  ~20GB (safe)
+# - batch_size=48, seq_len=1024, bf16, grad_ckpt=true:  ~22GB (tight)
+# - batch_size=32, seq_len=2048, bf16, grad_ckpt=true:  ~23GB (very tight)
+#
+# Performance Tips:
+# 1. Use BF16 for numerical stability (or FP16 if issues)
+# 2. Enable torch.compile for 20-30% speedup (PyTorch 2.0+)
+# 3. Enable TF32 (allow_tf32=true) for 3x matmul speedup
+# 4. Use gradient_checkpointing to save memory
+# 5. Adjust batch_size based on your sequence length
+# 6. Use gradient_accumulation_steps to simulate larger batches
+#
+# If Out of Memory (OOM):
+# 1. Reduce batch_size: 32 → 24 → 16
+# 2. Reduce max_seq_length: 1024 → 768 → 512
+# 3. Enable gradient_checkpointing (if not already)
+# 4. Reduce num_hidden_layers if training from scratch
+#
+# Expected Training Speed:
+# - ~2.5-3.5 steps/sec with batch_size=32, seq_len=1024
+# - ~50K steps in ~4-6 hours
+# - ~500K steps (full training) in ~40-60 hours (~2 days)
+#
+# For Multi-GPU (if you have multiple RTX 3090s):
+# - Set distributed=true
+# - Increase batch_size proportionally (e.g., 32 * num_gpus)
+# - Use: torchrun --nproc_per_node=NUM_GPUS scripts/train.py --config-file this_file.yaml
