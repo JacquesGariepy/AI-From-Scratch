@@ -7,7 +7,7 @@
 [![Tests](https://img.shields.io/badge/tests-passing-brightgreen)](tests/)
 [![Parameters](https://img.shields.io/badge/parameters-320.96M-blue)](#architecture-overview)
 
-**A 321M parameter GPT-style transformer model built from scratch for educational purposes.**
+**A 321M parameter Qwen/Llama-like transformer model built from scratch for educational purposes.**
 
 Learn how to implement, train, and deploy a modern large language model (LLM) with production-ready code, comprehensive tests, and detailed documentation. This project provides a complete, working implementation of a transformer-based causal language model compatible with the LlamaForCausalLM architecture.
 
