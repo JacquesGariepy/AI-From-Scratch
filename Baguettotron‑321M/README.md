@@ -172,44 +172,111 @@ For more detailed guides, see:
 
 ### 🎮 RTX 3090 Training (Optimized Configurations)
 
-Train the full 321M model on NVIDIA RTX 3090 (24GB VRAM) with optimized YAML configurations:
+Train models on NVIDIA RTX 3090 (24GB VRAM) with memory-optimized YAML configurations:
 
-#### **Production Training** (Optimal Quality)
+#### **Quick Smoke Test** (Ultra-Fast Validation)
 ```bash
-# Prepare Wikipedia dataset
-./baguettotron dataset prepare --type wikipedia --lang simple --tokenize
+# Tiny model for instant testing (2 layers, 64 hidden, ~17M params)
+python scripts/train.py --config-file configs/tiny_smoke.yaml
 
-# Train with production config (batch 40, BF16, gradient checkpointing)
-python scripts/train.py --config configs/train_321m_rtx3090.yaml
-
-# Expected: ~2.5-3.5 steps/sec, ~20GB VRAM, 100K steps in ~10-12 hours
+# Expected: ~200+ steps/sec, ~6-8GB VRAM, completes in ~1 minute
+# Perfect for: Testing code changes, CI/CD, quick validation
 ```
 
-**Config**: `train_321m_rtx3090.yaml`
-- Batch size: 32 + grad accumulation 4 = **effective 128**
+**Config**: `tiny_smoke.yaml`
+- Model: **2 layers, 64 hidden** (~17M parameters)
+- Batch: 4 + grad accumulation 8 = **effective 32**
+- Sequence length: **256 tokens**
+- Memory: **~6-8GB VRAM**
+
+#### **Small Model Training** (Fast Development)
+```bash
+# Small model for development and prototyping (4 layers, 256 hidden, ~67M params)
+python scripts/train.py --config-file configs/small_rtx3090.yaml
+
+# Expected: ~50-100 steps/sec, ~12-16GB VRAM
+# Perfect for: Development, prototyping, feature testing
+```
+
+**Config**: `small_rtx3090.yaml`
+- Model: **4 layers, 256 hidden** (~67M parameters)
+- Batch: 2 + grad accumulation 16 = **effective 32**
+- Sequence length: **512 tokens**
+- Memory: **~12-16GB VRAM**
+- Mixed precision: **Enabled**
+
+#### **Full 321M Model** (Production Training)
+```bash
+# Train with Simple Wikipedia dataset (compatible with current script)
+python scripts/train.py --config-file configs/train_321m_rtx3090_simple.yaml
+
+# Expected: ~2.5-3.5 steps/sec, ~19-20GB VRAM
+```
+
+**Config**: `train_321m_rtx3090_simple.yaml`
+- Model: **321M parameters** (80 layers, 576 hidden)
+- Batch: 40 + grad accumulation 4 = **effective 160**
+- Sequence length: **1024 tokens**
 - Mixed precision: **BF16**
-- Gradient checkpointing: **Yes** (memory efficient)
-- TF32: **Enabled** (3x matmul speedup)
-- Torch compile: **Yes** (20-30% faster)
+- Gradient checkpointing: **Yes**
+- Dataset: **Local file** (data/wikipedia_simple_tokens.json)
 
-#### **Fast Training** (Maximum Speed)
+**Resume Training from Checkpoint**:
 ```bash
-# Same dataset, faster training (40% speedup)
-python scripts/train.py --config configs/train_321m_rtx3090_fast.yaml
+# Continue training from a saved checkpoint (all 3 methods work)
 
-# Expected: ~4-5 steps/sec, ~22GB VRAM, 50K steps in ~3-4 hours
+# Method 1: Using YAML config (recommended - simplest)
+python scripts/train.py \
+  --config-file configs/train_321m_rtx3090_simple.yaml \
+  --checkpoint outputs/rtx3090_simple/ckpt_10000 \
+  --epochs 5
+
+# Method 2: Using command-line arguments
+python scripts/train.py \
+  --train-data data/wikipedia_simple_tokens.json \
+  --model-config 321m \
+  --checkpoint outputs/rtx3090_simple/ckpt_10000 \
+  --epochs 5 \
+  --batch-size 40 \
+  --gradient-accumulation-steps 4 \
+  --block-size 1024 \
+  --mixed-precision \
+  --compile
+
+# Method 3: Continue in new output directory (keeps old checkpoints separate)
+python scripts/train.py \
+  --config-file configs/train_321m_rtx3090_simple.yaml \
+  --checkpoint outputs/rtx3090_simple/ckpt_10000 \
+  --output-dir outputs/rtx3090_simple_continued \
+  --epochs 5
+
+# Note: When resuming, the trainer will:
+# - Restore model weights from model.pt
+# - Restore optimizer state from trainer_state.pt
+# - Continue from the saved step count
+# - Restore learning rate schedule state
+
+# Real example: Continue from epoch 1 to epoch 5
+python scripts/train.py \
+  --train-data data/wikipedia_simple_tokens.json \
+  --model-config 321m \
+  --checkpoint outputs/test_321m/ckpt_99963 \
+  --epochs 5 \
+  --batch-size 2 \
+  --gradient-accumulation-steps 8 \
+  --block-size 512 \
+  --mixed-precision \
+  --output-dir outputs/test_321m \
+  --compile
+
+# Expected: Loss should improve from ~1.9 to ~1.2-1.5 after 5 total epochs
 ```
 
-**Config**: `train_321m_rtx3090_fast.yaml`
-- Batch size: 48 + grad accumulation 2 = **effective 96**
-- Mixed precision: **FP16** (faster than BF16)
-- Gradient checkpointing: **No** (prioritize speed)
-- Shorter sequences: **768 tokens**
-
-#### **Multi-Dataset Wikipedia** (HuggingFace Auto-Download)
+#### **Multi-Dataset Wikipedia** (Advanced)
 ```bash
 # Automatically downloads and mixes 3 Wikipedia datasets
-python scripts/train.py --config configs/train_321m_rtx3090_wikipedia.yaml
+# Note: Requires compatible dataset loader in train.py
+python scripts/train.py --config-file configs/train_321m_rtx3090_wikipedia.yaml
 
 # Downloads:
 #   - 50K English articles (50% weight)
@@ -220,14 +287,21 @@ python scripts/train.py --config configs/train_321m_rtx3090_wikipedia.yaml
 
 **Config**: `train_321m_rtx3090_wikipedia.yaml`
 - Multi-dataset: **EN + Simple + FR** (auto-download from HuggingFace)
-- Optimized for: **RTX 3090 (24GB)**
-- Training time: **~30-35 hours** for 100K steps
+- Batch: 40 + grad accumulation 4 = **effective 160**
+- Memory: **~19-20GB VRAM**
 
-#### **Memory Optimization**
+#### **Memory Optimization Guide**
+
 If you encounter OOM (Out of Memory):
 
 ```bash
-# Option 1: Use smaller batch size and block size
+# Option 1: Start with tiny model for testing
+python scripts/train.py --config-file configs/tiny_smoke.yaml
+
+# Option 2: Use small model for development
+python scripts/train.py --config-file configs/small_rtx3090.yaml
+
+# Option 3: Reduce batch size for 321M model
 python scripts/train.py \
   --train-data data/wikipedia_simple_tokens.json \
   --model-config 321m \
@@ -236,22 +310,19 @@ python scripts/train.py \
   --block-size 512 \
   --mixed-precision \
   --output-dir outputs/rtx3090
-
-# Option 2: Use the simple config (compatible with current script)
-python scripts/train.py --config configs/train_321m_rtx3090_simple.yaml
 ```
 
-**Memory Usage Guide**:
-| Batch | Seq Len | Grad Ckpt | Memory | Speed |
-|-------|---------|-----------|--------|-------|
-| 32 | 1024 | Yes | ~20GB | Baseline |
-| 48 | 768 | No | ~22GB | +40% faster |
-| 24 | 2048 | Yes | ~23GB | -20% slower |
-| 2 | 512 | Yes | ~12GB | Safe mode |
+**Memory Usage Comparison**:
+| Config | Model Size | Seq Len | Memory | Speed | Use Case |
+|--------|-----------|---------|--------|-------|----------|
+| `tiny_smoke.yaml` | 17M (2 layers) | 256 | ~6-8GB | 200+ steps/sec | **Quick testing** |
+| `small_rtx3090.yaml` | 67M (4 layers) | 512 | ~12-16GB | 50-100 steps/sec | **Development** |
+| `train_321m_rtx3090_simple.yaml` | 321M (80 layers) | 1024 | ~19-20GB | 2.5-3.5 steps/sec | **Production** |
+| `train_321m_rtx3090_wikipedia.yaml` | 321M (80 layers) | 1024 | ~19-20GB | 2.5-3.5 steps/sec | **Multi-dataset** |
 
 📚 **Complete RTX 3090 Documentation**:
-- **[configs/RTX3090_GUIDE.md](configs/RTX3090_GUIDE.md)** - Complete RTX 3090 training guide
-- **[configs/WIKIPEDIA_RTX3090_QUICKSTART.md](configs/WIKIPEDIA_RTX3090_QUICKSTART.md)** - Wikipedia quick start
+- **[configs/RTX3090_GUIDE.md](configs/RTX3090_GUIDE.md)** - Complete RTX 3090 training guide (if exists)
+- **[configs/WIKIPEDIA_RTX3090_QUICKSTART.md](configs/WIKIPEDIA_RTX3090_QUICKSTART.md)** - Wikipedia quick start (if exists)
 
 ---
 

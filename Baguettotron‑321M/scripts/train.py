@@ -390,11 +390,40 @@ def main():
     )
     logger.info(f"Tokenizer loaded: vocab_size={tokenizer.vocab_size}")
 
-    # Load checkpoint if provided
+    # Store checkpoint path for later loading by trainer
+    checkpoint_dir = None
     if args.checkpoint:
-        logger.info(f"Loading checkpoint from {args.checkpoint}")
-        checkpoint = torch.load(args.checkpoint, map_location='cpu')
-        model.load_state_dict(checkpoint['model_state_dict'])
+        logger.info(f"Will resume training from checkpoint: {args.checkpoint}")
+
+        # Normalize checkpoint path (handle both directory and file paths)
+        if os.path.isdir(args.checkpoint):
+            checkpoint_dir = args.checkpoint
+            model_path = os.path.join(checkpoint_dir, 'model.pt')
+            if not os.path.exists(model_path):
+                logger.error(f"❌ Checkpoint directory exists but model.pt not found: {model_path}")
+                sys.exit(1)
+        else:
+            # If file path provided, extract directory
+            checkpoint_dir = os.path.dirname(args.checkpoint)
+
+        # Load only model weights here (optimizer/scheduler loaded by trainer later)
+        model_path = os.path.join(checkpoint_dir, 'model.pt')
+        logger.info(f"Loading model weights from {model_path}")
+        checkpoint = torch.load(model_path, map_location='cpu')
+
+        # Handle both raw state_dict and wrapped checkpoint formats
+        if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
+            state_dict = checkpoint['model_state_dict']
+        else:
+            state_dict = checkpoint
+
+        # Handle torch.compile checkpoints (with _orig_mod. prefix)
+        if any(k.startswith('_orig_mod.') for k in state_dict.keys()):
+            logger.info("  → Detected torch.compile checkpoint, removing _orig_mod. prefix")
+            state_dict = {k.replace('_orig_mod.', ''): v for k, v in state_dict.items()}
+
+        model.load_state_dict(state_dict)
+        logger.info(f"✅ Model weights loaded successfully")
 
     # Create datasets - support both single and multi-dataset modes
     logger.info("Loading training data...")
@@ -650,9 +679,35 @@ def main():
         use_compile=args.compile,
     )
 
-    # Load checkpoint state if resuming
-    if args.checkpoint:
-        trainer.load_checkpoint(args.checkpoint)
+    # Load trainer state (optimizer, scheduler, step count) if resuming
+    if checkpoint_dir:
+        trainer_state_path = os.path.join(checkpoint_dir, 'trainer_state.pt')
+        if os.path.exists(trainer_state_path):
+            logger.info(f"Loading trainer state from {trainer_state_path}")
+            trainer_state = torch.load(trainer_state_path, map_location='cpu')
+
+            # Restore optimizer state
+            if 'optimizer_state_dict' in trainer_state:
+                optimizer.load_state_dict(trainer_state['optimizer_state_dict'])
+                logger.info("  → Optimizer state restored")
+
+            # Restore scheduler state
+            if 'scheduler_state_dict' in trainer_state and scheduler is not None:
+                scheduler.load_state_dict(trainer_state['scheduler_state_dict'])
+                logger.info("  → Scheduler state restored")
+
+            # Restore trainer state
+            if 'global_step' in trainer_state:
+                trainer.global_step = trainer_state['global_step']
+                logger.info(f"  → Resuming from step {trainer.global_step}")
+
+            if 'epoch' in trainer_state:
+                trainer.current_epoch = trainer_state['epoch']
+                logger.info(f"  → Resuming from epoch {trainer.current_epoch}")
+
+            logger.info(f"✅ Trainer state restored successfully")
+        else:
+            logger.warning(f"⚠️  trainer_state.pt not found in {checkpoint_dir}, starting fresh optimizer/scheduler")
 
     # Train
     logger.info("Starting training...")

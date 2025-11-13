@@ -181,6 +181,12 @@ def load_model(
 
     # If no config in checkpoint, infer from weights or use default
     if config is None:
+        # Check if model was compiled (has _orig_mod. prefix)
+        if any(k.startswith('_orig_mod.') for k in state_dict.keys()):
+            # Remove _orig_mod. prefix from all keys
+            logger.info("Detected torch.compile checkpoint, removing _orig_mod. prefix")
+            state_dict = {k.replace('_orig_mod.', ''): v for k, v in state_dict.items()}
+
         # Infer dimensions from checkpoint weights
         vocab_size = state_dict['embeddings.weight'].shape[0]
         hidden_size = state_dict['embeddings.weight'].shape[1]
