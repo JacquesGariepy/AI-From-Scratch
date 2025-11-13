@@ -1,0 +1,119 @@
+# Baguettotron-321M Simple Training Configuration for RTX 3090
+# Compatible with current train.py script
+# Uses local dataset file
+
+# Model Configuration
+model:
+  config: "321m"
+  vocab_size: 65536
+  hidden_size: 576
+  num_hidden_layers: 80
+  num_attention_heads: 9
+  num_key_value_heads: 3
+  intermediate_size: 1536
+  max_position_embeddings: 4096
+  rope_theta: 10000.0
+  rope_scaling: null
+  rms_norm_eps: 1.0e-05
+  attention_dropout: 0.0
+  tie_word_embeddings: true
+
+# Training Configuration
+training:
+  # Data
+  train_data: "data/wikipedia_simple_tokens.json"  # Local dataset file
+
+  # Batch Configuration
+  batch_size: 40
+  gradient_accumulation_steps: 4
+  max_seq_length: 1024
+
+  # Training Duration
+  num_epochs: 10
+  max_steps: 100000
+
+  # Learning Rate
+  learning_rate: 2.5e-4
+  warmup_steps: 2000
+  lr_scheduler: "cosine"
+  min_lr_ratio: 0.1
+
+  # Optimizer
+  optimizer: "adamw"
+  weight_decay: 0.1
+  adam_beta1: 0.9
+  adam_beta2: 0.95
+  adam_epsilon: 1.0e-08
+  max_grad_norm: 1.0
+
+  # Mixed Precision
+  mixed_precision: "bf16"
+
+  # Memory Optimization
+  gradient_checkpointing: true
+
+  # Compilation
+  compile: true
+
+# Checkpointing
+checkpointing:
+  output_dir: "outputs/rtx3090_simple"
+  save_steps: 5000
+  save_total_limit: 3
+  resume_from_checkpoint: null
+
+# Logging
+logging:
+  log_level: "info"
+  log_steps: 100
+  eval_steps: 1000
+  use_wandb: false
+  use_tensorboard: true
+  tensorboard_dir: "runs/rtx3090_simple"
+
+# Hardware
+hardware:
+  device: "cuda"
+  num_workers: 6
+  pin_memory: true
+
+# Data Loading
+data:
+  shuffle: true
+  drop_last: true
+
+# Seed
+seed: 42
+
+# Performance
+performance:
+  allow_tf32: true
+  cudnn_benchmark: true
+
+# Usage:
+# =====
+#
+# 1. Prepare a dataset first:
+# ./baguettotron dataset prepare --type demo
+# OR
+# ./baguettotron dataset prepare --type wikipedia --lang simple --tokenize
+#
+# 2. Run training:
+# python scripts/train.py --config configs/train_321m_rtx3090_simple.yaml
+#
+# 3. Or override the data file:
+# python scripts/train.py \
+#   --config configs/train_321m_rtx3090_simple.yaml \
+#   --data data/wikipedia_simple_tokens.json
+
+# python scripts/train.py \
+#     --train-data data/wikipedia_simple_tokens.json \
+#     --model-config 321m \
+#     --epochs 1 \
+#     --batch-size 2 \
+#     --gradient-accumulation-steps 8 \
+#     --block-size 512 \
+#     --mixed-precision \
+#     --output-dir outputs/test_321m \
+#     --compile
+

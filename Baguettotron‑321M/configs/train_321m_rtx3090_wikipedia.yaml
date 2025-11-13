@@ -1,0 +1,282 @@
+# Baguettotron-321M Training for RTX 3090 with Wikipedia Dataset
+# Optimized for training on Wikipedia (Simple English or French)
+
+# Model Configuration
+model:
+  config: "321m"
+  vocab_size: 65536
+  hidden_size: 576
+  num_hidden_layers: 80
+  num_attention_heads: 9
+  num_key_value_heads: 3
+  intermediate_size: 1536
+  max_position_embeddings: 4096
+  rope_theta: 10000.0
+  rope_scaling: null
+  rms_norm_eps: 1.0e-05
+  attention_dropout: 0.0
+  hidden_dropout: 0.0
+  tie_word_embeddings: true
+
+# Multi-Dataset Configuration - Direct HuggingFace Integration
+# Optimized for RTX 3090 (24GB VRAM)
+datasets:
+  # Wikipedia English - Limited sample for RTX 3090
+  - name: "wikipedia_en"
+    source: "huggingface"
+    dataset_name: "wikimedia/wikipedia"
+    subset: "20231101.en"
+    split: "train"
+    weight: 0.5  # 50% of training data
+    max_samples: 50000  # Limit to 50K articles for RTX 3090
+    streaming: false  # Download and cache locally
+    text_field: "text"  # Field containing article text
+
+  # Wikipedia Simple English - Smaller, cleaner subset
+  - name: "wikipedia_simple"
+    source: "huggingface"
+    dataset_name: "wikimedia/wikipedia"
+    subset: "20231101.simple"
+    split: "train"
+    weight: 0.3  # 30% of training data
+    max_samples: null  # Use all (~20K articles)
+    streaming: false
+    text_field: "text"
+
+  # Wikipedia French - Additional diversity
+  - name: "wikipedia_fr"
+    source: "huggingface"
+    dataset_name: "wikimedia/wikipedia"
+    subset: "20231101.fr"
+    split: "train"
+    weight: 0.2  # 20% of training data
+    max_samples: 30000  # Limit to 30K articles
+    streaming: false
+    text_field: "text"
+
+# Training Configuration - Optimized for Multi-Dataset Wikipedia
+training:
+  # Batch Configuration - Optimized for RTX 3090
+  batch_size: 40  # Per GPU batch size
+  gradient_accumulation_steps: 4  # Effective batch = 40 * 4 = 160
+  max_seq_length: 1024  # Wikipedia articles fit well in 1024 tokens
+
+  # Training Duration - Adapted for ~80K total samples
+  num_epochs: 10  # 10 epochs through combined dataset
+  max_steps: 100000  # 100K steps for mixed Wikipedia
+
+  # Learning Rate
+  # Slightly lower for Wikipedia (cleaner text)
+  learning_rate: 2.5e-4  # Slightly lower than default
+  warmup_steps: 2000
+  lr_scheduler: "cosine"
+  min_lr_ratio: 0.1
+
+  # Optimizer
+  optimizer: "adamw"
+  weight_decay: 0.1
+  adam_beta1: 0.9
+  adam_beta2: 0.95
+  adam_epsilon: 1.0e-08
+  max_grad_norm: 1.0
+
+  # Mixed Precision
+  mixed_precision: "bf16"  # BF16 for stability with Wikipedia text
+
+  # Memory Optimization
+  gradient_checkpointing: true  # Keep enabled for safety
+  use_flash_attention: false
+
+  # Compilation
+  compile: true
+  compile_mode: "default"
+
+# Checkpointing
+checkpointing:
+  output_dir: "outputs/rtx3090_wikipedia_321m"
+  save_steps: 5000  # Save every 5K steps
+  save_total_limit: 5  # Keep more checkpoints for Wikipedia
+  resume_from_checkpoint: null
+
+# Logging
+logging:
+  log_level: "info"
+  log_steps: 100
+  eval_steps: 1000
+
+  # WandB
+  use_wandb: false
+  wandb_project: "baguettotron-321m-wikipedia"
+  wandb_run_name: "rtx3090-wikipedia"
+
+  # TensorBoard
+  use_tensorboard: true
+  tensorboard_dir: "runs/rtx3090_wikipedia_321m"
+
+# Evaluation
+evaluation:
+  eval_data: null  # Set path to Wikipedia validation set if available
+  eval_batch_size: 20
+  eval_accumulation_steps: 1
+
+# Hardware Configuration
+hardware:
+  device: "cuda"
+  num_workers: 6  # Balanced for Wikipedia
+  pin_memory: true
+  distributed: false
+  world_size: 1
+  local_rank: 0
+
+# Data Loading
+data:
+  shuffle: true
+  drop_last: true
+  prefetch_factor: 2
+  persistent_workers: true
+
+# Seed
+seed: 42
+
+# RTX 3090 Optimizations
+performance:
+  allow_tf32: true
+  cudnn_benchmark: true
+  empty_cache_steps: 100
+  max_split_size_mb: 512
+
+# Advanced Settings
+advanced:
+  use_packing: false
+  packing_factor: 1.0
+  attn_implementation: "sdpa"
+  tokenizer_type: "auto"
+
+# Multi-Dataset Wikipedia Configuration Notes
+# =============================================
+#
+# This config uses direct HuggingFace dataset loading with automatic mixing.
+# Total dataset: ~80K articles (50K EN + 20K Simple + 30K FR)
+# Mixed weights: 50% EN, 30% Simple, 20% FR
+#
+# Dataset Details:
+# - wikipedia_en: wikimedia/wikipedia:20231101.en (50K samples, weight 0.5)
+# - wikipedia_simple: wikimedia/wikipedia:20231101.simple (all ~20K, weight 0.3)
+# - wikipedia_fr: wikimedia/wikipedia:20231101.fr (30K samples, weight 0.2)
+#
+# Total Training Data:
+# - ~80K articles mixed according to weights
+# - Estimated ~50-60M tokens total
+# - Disk space: ~2-3GB downloaded and cached
+#
+# Recommended Training:
+# - 10 epochs: 100K steps (~30-35 hours on RTX 3090)
+# - Quick test: 1K steps (~30 minutes)
+# - Good baseline: 10K steps (~3-4 hours)
+#
+# Expected Performance:
+# - Speed: ~2.8-3.2 steps/sec (slightly faster than SYNTH)
+# - Memory: ~19-20GB VRAM (slightly lower than SYNTH)
+# - Quality: Good for general knowledge and factual text
+#
+# Wikipedia Characteristics:
+# ✅ Clean, well-structured text
+# ✅ Good for factual knowledge
+# ✅ Shorter articles (easier to fit in context)
+# ✅ Encyclopedic style
+# ❌ Less diverse than SYNTH
+# ❌ Formal tone only
+# ❌ Limited conversational patterns
+#
+# Best Use Cases:
+# - Factual question answering
+# - Educational content generation
+# - Knowledge-based applications
+# - Testing and prototyping
+#
+# Training Commands with Multi-Dataset:
+# =======================================
+#
+# Full Training (automatic dataset download and mixing):
+# ./baguettotron train --config-file configs/train_321m_rtx3090_wikipedia.yaml
+#
+# Quick Test (1000 steps, ~30 minutes):
+# ./baguettotron train \
+#   --config-file configs/train_321m_rtx3090_wikipedia.yaml \
+#   --max-steps 1000
+#
+# Medium Run (10K steps, ~3-4 hours):
+# ./baguettotron train \
+#   --config-file configs/train_321m_rtx3090_wikipedia.yaml \
+#   --max-steps 10000
+#
+# Resume from Checkpoint:
+# ./baguettotron train \
+#   --config-file configs/train_321m_rtx3090_wikipedia.yaml \
+#   --resume-from-checkpoint outputs/rtx3090_wikipedia_321m/checkpoint-10000
+
+# python ./baguettotron train \
+#     --train-data data/wikipedia_simple_tokens.json \
+#     --model-config 321m \
+#     --epochs 1 \
+#     --batch-size 2 \
+#     --gradient-accumulation-steps 8 \
+#     --block-size 512 \
+#     --mixed-precision \
+#     --output-dir outputs/test_321m \
+#     --compile
+
+# Adjust Dataset Weights (more English):
+# Edit this file and change:
+#   wikipedia_en weight: 0.5 → 0.7
+#   wikipedia_simple weight: 0.3 → 0.2
+#   wikipedia_fr weight: 0.2 → 0.1
+#
+# Adjust Sample Limits (for faster testing):
+# Edit this file and change:
+#   wikipedia_en max_samples: 50000 → 10000
+#   wikipedia_fr max_samples: 30000 → 5000
+#
+# Performance Expectations:
+# ========================
+#
+# Simple English Wikipedia (200MB):
+# - 10K steps: ~1 hour
+# - 50K steps: ~4-5 hours
+# - 200K steps: ~20-25 hours (full training)
+# - Expected final loss: ~2.5-3.0
+#
+# French Wikipedia (1GB):
+# - 10K steps: ~1 hour
+# - 50K steps: ~4-5 hours
+# - 300K steps: ~35-45 hours (full training)
+# - Expected final loss: ~2.2-2.8
+#
+# Memory Usage:
+# - Batch 40, seq 1024, bf16, grad_ckpt: ~19-20GB
+# - Can increase to batch 48 if needed (~21GB)
+# - Can reduce to batch 32 for safety (~18GB)
+#
+# Troubleshooting:
+# ===============
+#
+# If Wikipedia dataset not found:
+# ./baguettotron dataset prepare --type wikipedia --lang simple --tokenize
+# ./baguettotron dataset list
+#
+# If OOM with batch 40:
+# - Reduce to batch_size: 32 or 24
+# - Keep gradient_accumulation_steps: 4
+# - This maintains good effective batch size
+#
+# If training too slow:
+# - Disable gradient_checkpointing (saves 20% time, uses +30% memory)
+# - Increase num_workers to 8
+# - Switch to FP16 mixed precision
+#
+# If loss not decreasing:
+# - Check tokenization is correct
+# - Verify dataset quality (no corruption)
+# - Try slightly higher learning rate (3e-4)
+# - Increase warmup_steps to 5000
+

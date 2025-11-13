@@ -450,7 +450,7 @@ def main():
             # Check if list of strings or list of dicts
             if len(args.datasets) > 0 and isinstance(args.datasets[0], dict):
                 # Syntax 3: List of dicts (full YAML with paths and weights)
-                from baguettotron.data import TextDataset
+                # TextDataset already imported at top of file
                 from baguettotron.data.huggingface_loader import (
                     parse_huggingface_config,
                     load_huggingface_dataset
