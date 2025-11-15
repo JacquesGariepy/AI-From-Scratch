@@ -3,7 +3,7 @@ Training utilities for Baguettotron.
 
 This module provides a Trainer class for training and evaluating
 Baguettotron language models, with support for distributed training,
-gradient accumulation, and mixed precision.
+gradient accumulation, mixed precision, and SOTA metrics tracking.
 """
 
 import torch
@@ -14,6 +14,9 @@ from pathlib import Path
 import logging
 from tqdm import tqdm
 import time
+
+from .metrics import MetricsTracker
+from .logger import TrainingLogger
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +95,16 @@ class Trainer:
         output_dir: str | Path = 'outputs',
         mixed_precision: bool = False,
         use_compile: bool = False,
+        # Logging options
+        use_tensorboard: bool = True,
+        use_wandb: bool = False,
+        tensorboard_dir: Optional[str | Path] = None,
+        wandb_project: Optional[str] = None,
+        wandb_run_name: Optional[str] = None,
+        wandb_config: Optional[Dict[str, Any]] = None,
+        # Metrics tracking
+        track_layer_metrics: bool = False,
+        track_activations: bool = False,
     ):
         self.model = model
         self.train_dataloader = train_dataloader
@@ -133,7 +146,59 @@ class Trainer:
         self.best_eval_loss = float('inf')
 
         # Track saved checkpoints for cleanup
-        self.saved_checkpoints = []
+        # Discover existing checkpoints on initialization
+        self.saved_checkpoints = self._discover_existing_checkpoints()
+
+        # Initialize SOTA metrics tracker
+        self.metrics_tracker = MetricsTracker(
+            model=self.model,
+            log_interval=log_interval,
+            track_layer_wise=track_layer_metrics,
+            track_activations=track_activations,
+        )
+
+        # Initialize training logger (TensorBoard + WandB)
+        self.training_logger = TrainingLogger(
+            output_dir=self.output_dir,
+            use_tensorboard=use_tensorboard,
+            use_wandb=use_wandb,
+            tensorboard_dir=tensorboard_dir,
+            wandb_project=wandb_project,
+            wandb_run_name=wandb_run_name,
+            wandb_config=wandb_config,
+        )
+
+    def _discover_existing_checkpoints(self) -> list:
+        """
+        Discover existing checkpoint directories in output_dir.
+
+        Returns:
+            List of Path objects for existing checkpoint directories, sorted by step number
+        """
+        import re
+
+        checkpoints = []
+
+        # Find all ckpt_* directories
+        if self.output_dir.exists():
+            for item in self.output_dir.iterdir():
+                if item.is_dir():
+                    # Match ckpt_XXXXX pattern
+                    match = re.match(r'ckpt_(\d+)', item.name)
+                    if match:
+                        step_num = int(match.group(1))
+                        checkpoints.append((step_num, item))
+
+        # Sort by step number
+        checkpoints.sort(key=lambda x: x[0])
+
+        # Return only the Path objects
+        discovered = [path for _, path in checkpoints]
+
+        if discovered:
+            logger.info(f"Discovered {len(discovered)} existing checkpoints")
+
+        return discovered
 
     def train(self) -> Dict[str, Any]:
         """
@@ -152,7 +217,11 @@ class Trainer:
         total_loss = 0.0
         start_time = time.time()
 
-        for epoch in range(self.max_epochs):
+        # Start from current epoch (important for resume)
+        start_epoch = self.epoch
+        logger.info(f"Starting from epoch {start_epoch + 1}/{self.max_epochs}")
+
+        for epoch in range(start_epoch, self.max_epochs):
             self.epoch = epoch
             epoch_loss = self._train_epoch()
 
@@ -163,16 +232,26 @@ class Trainer:
                 eval_metrics = self.evaluate()
                 logger.info(f"Eval loss: {eval_metrics['loss']:.4f}")
 
-                # Save best model
+                # Save best model based on eval loss (separate from regular checkpoints)
                 if eval_metrics['loss'] < self.best_eval_loss:
                     self.best_eval_loss = eval_metrics['loss']
-                    self.save_checkpoint(filename='best_model')
+                    self.save_checkpoint(filename='best_model', count_towards_limit=False)
+                    logger.info(f"💾 New best model saved! Eval loss: {eval_metrics['loss']:.4f}")
+            else:
+                # Fallback: save best model based on training loss if no eval data
+                if epoch_loss < self.best_eval_loss:
+                    self.best_eval_loss = epoch_loss
+                    self.save_checkpoint(filename='best_model', count_towards_limit=False)
+                    logger.info(f"💾 New best model saved! Train loss: {epoch_loss:.4f}")
 
             # Save epoch checkpoint
             self.save_checkpoint(step=self.global_step)
 
         training_time = time.time() - start_time
         logger.info(f"Training completed in {training_time:.2f} seconds")
+
+        # Close loggers
+        self.training_logger.close()
 
         return {
             'total_steps': self.global_step,
@@ -183,6 +262,7 @@ class Trainer:
     def _train_epoch(self) -> float:
         """Train for one epoch."""
         epoch_loss = 0.0
+        num_batches_processed = 0
         self.model.train()
 
         progress_bar = tqdm(
@@ -193,6 +273,7 @@ class Trainer:
         for step, batch in enumerate(progress_bar):
             loss = self._training_step(batch)
             epoch_loss += loss
+            num_batches_processed += 1
 
             # Monitor GPU memory usage
             if torch.cuda.is_available() and (step + 1) % 50 == 0:
@@ -230,12 +311,19 @@ class Trainer:
 
             self.global_step += 1
 
-        return epoch_loss / len(self.train_dataloader)
+        # Return average loss over batches actually processed
+        return epoch_loss / num_batches_processed if num_batches_processed > 0 else 0.0
 
     def _training_step(self, batch: Dict[str, torch.Tensor]) -> float:
-        """Execute a single training step."""
+        """Execute a single training step with SOTA metrics tracking."""
+        # Start step timing
+        self.metrics_tracker.start_step()
+
         # Move batch to device (non-blocking for better performance)
         batch = {k: v.to(self.device, non_blocking=True) for k, v in batch.items()}
+
+        # Count tokens for throughput metrics
+        num_tokens = batch['input_ids'].numel()
 
         # Forward pass with mixed precision if enabled
         if self.mixed_precision:
@@ -255,13 +343,45 @@ class Trainer:
         else:
             loss.backward()
 
-        # Optimizer step (with gradient accumulation)
+        # Track metrics at accumulation boundaries
+        actual_loss = loss.item() * self.gradient_accumulation_steps
+
         if (self.global_step + 1) % self.gradient_accumulation_steps == 0:
-            # Gradient clipping
-            if self.max_grad_norm is not None:
+            # Unscale gradients first if using mixed precision (required for GradScaler state machine)
+            if self.mixed_precision:
+                self.scaler.unscale_(self.optimizer)
+
+            # Compute pre-clip gradient metrics (after unscaling)
+            params = [p for p in self.model.parameters() if p.requires_grad]
+            pre_clip_metrics = self.metrics_tracker.compute_gradient_metrics(params, pre_clip=True)
+
+            # 🚨 SAFETY: Check for NaN/Inf AFTER unscaling
+            nan_count = pre_clip_metrics.get('nan_count', 0)
+            inf_count = pre_clip_metrics.get('inf_count', 0)
+
+            if nan_count > 0 or inf_count > 0:
+                logger.error(f"🚨 DETECTED {nan_count} NaN and {inf_count} Inf gradients - SKIPPING BATCH")
+
+                # Save emergency checkpoint (only once)
+                emergency_path = self.output_dir / 'emergency_nan_inf'
+                if not emergency_path.exists():
+                    logger.warning(f"Saving emergency checkpoint to {emergency_path}")
+                    self.save_checkpoint(filename='emergency_nan_inf', count_towards_limit=False)
+
+                # Properly reset scaler and optimizer for mixed precision
+                self.optimizer.zero_grad(set_to_none=True)
                 if self.mixed_precision:
-                    self.scaler.unscale_(self.optimizer)
+                    # Update scaler to reset its internal state (inf check was recorded by unscale_)
+                    self.scaler.update()
+
+                return 0.0  # Return 0 loss to avoid corrupting metrics
+
+            # Gradient clipping (gradients already unscaled above if using mixed precision)
+            if self.max_grad_norm is not None:
                 torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.max_grad_norm)
+
+            # Compute post-clip gradient metrics
+            post_clip_metrics = self.metrics_tracker.compute_gradient_metrics(params, pre_clip=False)
 
             # Optimizer step
             if self.mixed_precision:
@@ -274,10 +394,41 @@ class Trainer:
             if self.scheduler is not None:
                 self.scheduler.step()
 
+            # Log metrics at log_interval
+            if self.global_step % self.log_interval == 0:
+                # Compute all metrics
+                loss_metrics = self.metrics_tracker.compute_loss_metrics(actual_loss, num_tokens)
+                gpu_metrics = self.metrics_tracker.compute_gpu_metrics()
+                throughput_metrics = self.metrics_tracker.compute_throughput_metrics(num_tokens)
+                weight_metrics = self.metrics_tracker.compute_weight_metrics()
+
+                # Combine all metrics
+                all_metrics = {
+                    **loss_metrics,
+                    **pre_clip_metrics,
+                    **post_clip_metrics,
+                    **gpu_metrics,
+                    **throughput_metrics,
+                    **weight_metrics,
+                }
+
+                # Add learning rate
+                current_lr = self.scheduler.get_last_lr()[0] if self.scheduler else self.optimizer.param_groups[0]['lr']
+                all_metrics['learning_rate'] = current_lr
+
+                # Log to TensorBoard/WandB
+                self.training_logger.log_metrics(all_metrics, self.global_step, prefix='train/')
+
+                # Log layer-wise metrics if enabled (less frequent)
+                if hasattr(self.metrics_tracker, 'track_layer_wise') and self.metrics_tracker.track_layer_wise:
+                    if self.global_step % (self.log_interval * 10) == 0:
+                        layer_metrics = self.metrics_tracker.compute_layer_wise_metrics()
+                        self.training_logger.log_layer_metrics(layer_metrics, self.global_step)
+
             # Zero gradients
             self.optimizer.zero_grad()
 
-        return loss.item() * self.gradient_accumulation_steps
+        return actual_loss
 
     def _compute_loss(self, logits: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
         """
@@ -335,15 +486,16 @@ class Trainer:
             'perplexity': perplexity,
         }
 
-    def save_checkpoint(self, filename: str = None, step: int = None) -> None:
+    def save_checkpoint(self, filename: str = None, step: int = None, count_towards_limit: bool = True) -> None:
         """
         Save a checkpoint with separate model.pt and trainer_state.pt files.
 
         Creates a directory structure like: ckpt_12000/model.pt, ckpt_12000/trainer_state.pt
 
         Args:
-            filename: Deprecated - use step instead
+            filename: Special checkpoint name (e.g., 'best_model') that won't count towards limit
             step: Training step number (uses global_step if None)
+            count_towards_limit: Whether this checkpoint counts towards save_total_limit
         """
         import json
         import shutil
@@ -386,19 +538,23 @@ class Trainer:
 
         logger.info(f"Checkpoint saved to {checkpoint_dir}")
 
-        # Track saved checkpoints for cleanup
-        self.saved_checkpoints.append(checkpoint_dir)
+        # Track saved checkpoints for cleanup (only if counting towards limit)
+        if count_towards_limit:
+            self.saved_checkpoints.append(checkpoint_dir)
 
-        # Cleanup old checkpoints if limit set
-        if self.save_total_limit is not None and len(self.saved_checkpoints) > self.save_total_limit:
-            # Remove oldest checkpoints
-            checkpoints_to_remove = self.saved_checkpoints[:-self.save_total_limit]
-            for old_checkpoint in checkpoints_to_remove:
-                if old_checkpoint.exists() and old_checkpoint.is_dir():
-                    shutil.rmtree(old_checkpoint)
-                    logger.info(f"Removed old checkpoint: {old_checkpoint}")
-            # Keep only recent checkpoints in list
-            self.saved_checkpoints = self.saved_checkpoints[-self.save_total_limit:]
+            # Cleanup old checkpoints if limit set
+            if self.save_total_limit is not None and len(self.saved_checkpoints) > self.save_total_limit:
+                # Remove oldest checkpoints
+                checkpoints_to_remove = self.saved_checkpoints[:-self.save_total_limit]
+                for old_checkpoint in checkpoints_to_remove:
+                    # Only remove if it exists and is a step-based checkpoint (not best_model, etc.)
+                    if old_checkpoint.exists() and old_checkpoint.is_dir():
+                        # Safety check: only remove ckpt_* directories
+                        if old_checkpoint.name.startswith('ckpt_'):
+                            shutil.rmtree(old_checkpoint)
+                            logger.info(f"Removed old checkpoint: {old_checkpoint}")
+                # Keep only recent checkpoints in list
+                self.saved_checkpoints = self.saved_checkpoints[-self.save_total_limit:]
 
     def load_checkpoint(self, checkpoint_path: str | Path) -> None:
         """

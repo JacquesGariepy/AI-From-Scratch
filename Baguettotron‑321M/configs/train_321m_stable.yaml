@@ -1,0 +1,51 @@
+# Configuration stable pour recovery après NaN/Inf
+# Usage: python scripts/train.py --config config/train_321m_stable.yaml --checkpoint outputs/test_321m/ckpt_364000
+
+# === MODEL ===
+model:
+  config: "321m"
+
+# === DATA ===
+data:
+  train_data: "data/wikipedia_simple_tokens.json"
+  # Recommandé: ajouter eval data pour meilleur monitoring
+  # eval_data: "data/eval.json"
+
+# === TRAINING - STABILITÉ ===
+training:
+  # Hyperparamètres réduits pour stabilité
+  epochs: 5
+  batch_size: 2
+  gradient_accumulation_steps: 8
+
+  # 🔧 Learning rate réduit (50% de l'original)
+  learning_rate: 5e-5  # Au lieu de 1e-4
+
+  weight_decay: 0.1
+
+  # 🔧 Gradient clipping plus agressif
+  max_grad_norm: 0.5  # Au lieu de 1.0
+
+  # 🔧 Re-warmup pour stabiliser
+  scheduler: "cosine"
+  warmup_steps: 500
+
+  block_size: 512
+
+  # 🔧 Performance - compile désactivé temporairement
+  mixed_precision: true
+  use_compile: false  # Désactivé pour stabilité
+
+  # Checkpointing
+  save_interval: 1000
+  save_total_limit: 5
+
+  # Logging
+  eval_interval: 1000
+  log_interval: 10
+
+  # Output
+  output_dir: "outputs/recovery_321m"
+
+seed: 42
+device: "cuda"

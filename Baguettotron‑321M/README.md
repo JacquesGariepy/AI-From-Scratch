@@ -414,6 +414,184 @@ For detailed smoke test documentation, see **[docs/SMOKE_TESTS_GUIDE.md](docs/SM
 
 For HuggingFace integration guide, see **[docs/HUGGINGFACE_INTEGRATION.md](docs/HUGGINGFACE_INTEGRATION.md)**.
 
+### Command-Line Parameters Reference
+
+#### Training Parameters (`train.py`)
+
+**Data & Model:**
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `--config` | path | None | Path to YAML config file (overrides other arguments) |
+| `--train-data` | path | `data/train_tokens.json` | Path to training data (JSON file with token sequences) |
+| `--datasets` | str | None | Comma-separated list of datasets (`synth,wikipedia,demo`) or `auto` |
+| `--dataset-weights` | str | None | Comma-separated weights for each dataset (e.g., `0.7,0.3`) |
+| `--eval-data` | path | None | Path to evaluation data (optional) |
+| `--block-size` | int | 2048 | Maximum sequence length (also `--max-length`) |
+| `--model-config` | str | `321m` | Model configuration preset (`tiny`, `321m`, `custom`) |
+| `--model-config-file` | path | None | Path to custom model config YAML (for `--model-config custom`) |
+| `--checkpoint` | path | None | Path to checkpoint to resume training from |
+
+**Training Hyperparameters:**
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `--epochs` | int | 10 | Number of training epochs |
+| `--batch-size` | int | 32 | Training batch size per GPU |
+| `--gradient-accumulation-steps` | int | 1 | Number of gradient accumulation steps (effective batch = batch-size × this) |
+| `--learning-rate` | float | 1e-4 | Learning rate (0.0001) |
+| `--weight-decay` | float | 0.1 | Weight decay for AdamW optimizer |
+| `--max-grad-norm` | float | 1.0 | Maximum gradient norm for clipping |
+
+**Learning Rate Schedule:**
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `--scheduler` | str | `cosine` | LR scheduler type (`linear`, `cosine`, `constant`, `polynomial`, `inverse_sqrt`) |
+| `--warmup-steps` | int | 1000 | Number of warmup steps for learning rate |
+
+**Performance & Hardware:**
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `--device` | str | `cuda` | Device to train on (`cuda`, `cpu`) |
+| `--mixed-precision` | flag | False | Use automatic mixed precision (AMP) for faster training |
+| `--compile` | flag | False | Use `torch.compile` for faster training (PyTorch 2.0+) |
+| `--num-workers` | int | 4 | Number of data loading workers |
+| `--seed` | int | 42 | Random seed for reproducibility |
+
+**Checkpointing & Logging:**
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `--output-dir` | path | `outputs` | Directory to save checkpoints and logs |
+| `--log-interval` | int | 10 | Log metrics every N steps |
+| `--eval-interval` | int | 1000 | Evaluate every N steps |
+| `--save-interval` | int | 1000 | Save checkpoint every N steps (also `--save-steps`) |
+| `--save-total-limit` | int | None | Maximum number of checkpoints to keep (default: keep all) |
+
+**Example Commands:**
+
+```bash
+# Basic training with all defaults
+python scripts/train.py --train-data data/train.json
+
+# Production training with RTX 3090 optimization
+python scripts/train.py \
+  --train-data data/wikipedia_simple_tokens.json \
+  --model-config 321m \
+  --epochs 10 \
+  --batch-size 40 \
+  --gradient-accumulation-steps 4 \
+  --block-size 1024 \
+  --learning-rate 1e-4 \
+  --warmup-steps 2000 \
+  --scheduler cosine \
+  --mixed-precision \
+  --compile \
+  --save-interval 5000 \
+  --save-total-limit 5 \
+  --output-dir outputs/my_training
+
+# Resume from checkpoint with checkpoint rotation
+python scripts/train.py \
+  --checkpoint outputs/my_training/ckpt_150000 \
+  --train-data data/wikipedia_simple_tokens.json \
+  --model-config 321m \
+  --epochs 15 \
+  --save-total-limit 5
+```
+
+#### Generation Parameters (`generate.py`)
+
+**Model & Input:**
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `--checkpoint` | path | Required | Path to model checkpoint file |
+| `--config` | str | `321m` | Model configuration (`tiny`, `321m`) - should match checkpoint |
+| `--prompt` | str | None | Prompt text for generation (non-interactive mode) |
+| `--interactive` | flag | False | Run in interactive mode (continuous conversation) |
+
+**Generation Strategy:**
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `--max-new-tokens` | int | 100 | Maximum number of tokens to generate |
+| `--temperature` | float | 0.8 | Sampling temperature (higher = more random, 0 = greedy) |
+| `--top-k` | int | None | Top-k sampling (keep only top k tokens) |
+| `--top-p` | float | None | Nucleus sampling (keep tokens with cumulative prob ≥ top_p) |
+| `--do-sample` | flag | True | Use sampling (otherwise greedy decoding) |
+| `--greedy` | flag | False | Use greedy decoding (disables sampling) |
+
+**Chat Mode:**
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `--chat-mode` | flag | False | Enable chat mode with conversation formatting (ChatML) |
+| `--system-prompt` | str | None | System prompt for chat mode (e.g., "You're an Expert AI Assistant") |
+| `--chat-template` | path | None | Path to `chat_template.json` (default: auto-detect from `assets/`) |
+
+**Other:**
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `--device` | str | `cuda` | Device to run on (`cuda`, `cpu`) |
+| `--tokenizer` | str | `auto` | Tokenizer type (`auto`, `baguettotron`, `gpt2`, `char`) |
+| `--seed` | int | 42 | Random seed for reproducibility |
+
+**Example Commands:**
+
+```bash
+# Simple text generation
+python scripts/generate.py \
+  --checkpoint outputs/my_training/ckpt_150000/model.pt \
+  --prompt "Once upon a time" \
+  --max-new-tokens 200 \
+  --temperature 0.7
+
+# Interactive chat mode with custom settings
+python scripts/generate.py \
+  --checkpoint outputs/my_training/ckpt_150000/model.pt \
+  --chat-mode \
+  --interactive \
+  --system-prompt "You're an Expert AI Assistant" \
+  --temperature 0.7 \
+  --top-p 0.9 \
+  --top-k 50 \
+  --max-new-tokens 512
+
+# Greedy decoding (deterministic)
+python scripts/generate.py \
+  --checkpoint outputs/my_training/ckpt_150000/model.pt \
+  --prompt "The capital of France is" \
+  --greedy \
+  --max-new-tokens 50
+
+# Creative generation with high temperature
+python scripts/generate.py \
+  --checkpoint outputs/my_training/ckpt_150000/model.pt \
+  --prompt "Write a creative story:" \
+  --temperature 1.2 \
+  --top-p 0.95 \
+  --max-new-tokens 500
+```
+
+**Using the CLI Wrapper:**
+
+The `./baguettotron` CLI wrapper provides the same functionality:
+
+```bash
+# Training
+./baguettotron train \
+  --data data/train.json \
+  --config 321m \
+  --epochs 10 \
+  --batch-size 32
+
+# Generation
+./baguettotron generate \
+  --checkpoint outputs/my_training/ckpt_150000/model.pt \
+  --chat-mode \
+  --interactive \
+  --system-prompt "You're an Expert AI Assistant" \
+  --temperature 0.7 \
+  --max-length 512
+```
+
+**Note:** The CLI wrapper uses `--max-length` while the Python script uses `--max-new-tokens`.
+
 ### Training with Multiple Datasets
 
 Baguettotron supports training on multiple datasets simultaneously with weighted sampling:

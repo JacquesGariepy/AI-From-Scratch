@@ -1,0 +1,51 @@
+# Recovery Configuration for Baguettotron-321M
+# Use this after NaN/Inf gradient detection
+
+model:
+  config: "321m"
+
+training:
+  # === STABILITY IMPROVEMENTS ===
+  # Reduced learning rate for stability (50% reduction)
+  learning_rate: 5e-5        # Was: 1e-4
+
+  # More aggressive gradient clipping
+  max_grad_norm: 0.5         # Was: 1.0
+
+  # Re-warmup to stabilize after crash
+  warmup_steps: 500
+
+  # Conservative scheduler
+  scheduler: "cosine"
+
+  # === BATCH CONFIGURATION ===
+  epochs: 5
+  batch_size: 2
+  gradient_accumulation_steps: 8
+  block_size: 512
+
+  # === PRECISION ===
+  # Keep mixed precision but will use safer scaler
+  mixed_precision: true
+
+  # Disable compile temporarily for stability
+  use_compile: false
+
+  # === OTHER ===
+  weight_decay: 0.1
+
+  # === CHECKPOINTING ===
+  save_interval: 1000
+  save_total_limit: 5
+  eval_interval: 1000
+  log_interval: 10
+
+  output_dir: "outputs/recovery_321m"
+
+  # === LOGGING ===
+  use_tensorboard: true
+
+data:
+  train_data: "data/wikipedia_simple_tokens.json"
+  # Optional: add eval data for best model tracking
+  # eval_data: "data/eval.json"

@@ -1,0 +1,53 @@
+# Configuration complète pour entraînement Baguettotron-321M sur Wikipedia
+# Usage: python scripts/train.py --config config/train_321m_wikipedia.yaml
+
+# === MODEL ===
+model:
+  config: "321m"  # Utilise BaguettotronConfig.baguettotron_321m()
+
+# === DATA ===
+data:
+  train_data: "data/wikipedia_simple_tokens.json"
+  # Optionnel: ajouter données d'évaluation
+  # eval_data: "data/wikipedia_eval.json"
+
+# === TRAINING ===
+training:
+  # Hyperparamètres principaux
+  epochs: 5
+  batch_size: 2
+  gradient_accumulation_steps: 8  # Effective batch = 2 * 8 = 16
+  learning_rate: 1e-4
+  weight_decay: 0.1
+  max_grad_norm: 1.0
+
+  # Scheduler
+  scheduler: "cosine"
+  warmup_steps: 1000
+
+  # Séquence
+  block_size: 512
+
+  # Performance
+  mixed_precision: true
+  use_compile: true
+
+  # Checkpointing
+  save_interval: 1000
+  save_total_limit: 5
+
+  # Logging
+  eval_interval: 1000
+  log_interval: 10
+
+  # Output
+  output_dir: "outputs/wikipedia_321m"
+
+  # TensorBoard
+  use_tensorboard: true
+  # tensorboard_dir: "outputs/wikipedia_321m/tensorboard"  # Optionnel
+
+# === OTHER ===
+seed: 42
+device: "cuda"
+num_workers: 4

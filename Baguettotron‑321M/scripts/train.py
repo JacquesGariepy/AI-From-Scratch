@@ -660,6 +660,13 @@ def main():
 
     # Create trainer
     logger.info("Creating trainer...")
+    # Get logging configuration from args/config
+    use_tensorboard = getattr(args, 'use_tensorboard', True)
+    use_wandb = getattr(args, 'use_wandb', False)
+    tensorboard_dir = getattr(args, 'tensorboard_dir', None)
+    wandb_project = getattr(args, 'wandb_project', 'baguettotron-321m')
+    wandb_run_name = getattr(args, 'wandb_run_name', None)
+
     trainer = Trainer(
         model=model,
         train_dataloader=train_dataloader,
@@ -677,6 +684,21 @@ def main():
         output_dir=args.output_dir,
         mixed_precision=args.mixed_precision,
         use_compile=args.compile,
+        # Logging parameters
+        use_tensorboard=use_tensorboard,
+        use_wandb=use_wandb,
+        tensorboard_dir=tensorboard_dir,
+        wandb_project=wandb_project,
+        wandb_run_name=wandb_run_name,
+        wandb_config={
+            'model_config': args.model_config,
+            'batch_size': args.batch_size,
+            'learning_rate': args.learning_rate,
+            'epochs': args.epochs,
+        } if use_wandb else None,
+        # Metrics tracking
+        track_layer_metrics=False,  # Can be enabled via config
+        track_activations=False,
     )
 
     # Load trainer state (optimizer, scheduler, step count) if resuming
